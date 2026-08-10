@@ -1,0 +1,26 @@
+# Build the image from source (frontend included) and run it.
+#
+# Host-specific paths come from the environment so nothing about a particular
+# machine is committed. Copy .env.example to .env and adjust, or export:
+#   PANEL_ENV_FILE  path to the file holding ADMIN_TOKEN / CPA_MANAGEMENT_SECRET
+#   PANEL_DATA_DIR  directory for the SQLite database (must be owned by uid 10001)
+#   PANEL_PORT      published port
+services:
+  cpa-model-panel:
+    image: cpa-model-panel:local
+    build: .
+    container_name: cpa-model-panel
+    restart: unless-stopped
+    ports:
+      - "${PANEL_PORT:-5006}:5006"
+    env_file:
+      - ${PANEL_ENV_FILE:-./cpa-model-panel.env}
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      LISTEN: ":5006"
+      DATA_DIR: /data
+      CPA_BASE_URL: ${CPA_BASE_URL:-http://host.docker.internal:5000}
+    volumes:
+      - ${PANEL_DATA_DIR:-./data}:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -1,0 +1,8 @@
+.git
+.github
+data
+web/node_modules
+web/dist
+**/*_test.go
+.env
+*.exe

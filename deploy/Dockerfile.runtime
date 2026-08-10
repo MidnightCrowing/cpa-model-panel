@@ -1,0 +1,14 @@
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates tzdata \
+  && adduser -D -H -u 10001 panel \
+  && mkdir -p /data \
+  && chown panel:panel /data
+ENV TZ=Asia/Shanghai
+WORKDIR /app
+COPY bin/cpa-model-panel-linux /app/cpa-model-panel
+RUN chmod +x /app/cpa-model-panel
+USER panel
+EXPOSE 5006
+ENV LISTEN=:5006 DATA_DIR=/data
+VOLUME ["/data"]
+ENTRYPOINT ["/app/cpa-model-panel"]

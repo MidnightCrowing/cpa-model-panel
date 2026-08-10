@@ -1,0 +1,14 @@
+# build output
+/bin/
+/web/dist/*
+!/web/dist/.gitkeep
+/web/node_modules/
+/web/tsconfig.tsbuildinfo
+
+# runtime data
+/data/
+*.db
+
+# local config
+.env
+*.exe

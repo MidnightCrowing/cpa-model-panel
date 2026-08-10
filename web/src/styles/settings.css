@@ -1,0 +1,136 @@
+/* ── Settings page ──────────────────────────────────────── */
+
+.settings-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding-bottom: 20px;
+}
+
+.settings-card {
+  padding: 16px 18px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.settings-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-summary {
+  border-top: 1px solid var(--border-color);
+  padding-top: 10px;
+  color: var(--text-muted);
+}
+
+.settings-summary summary {
+  cursor: pointer;
+}
+
+.settings-summary-list {
+  margin-top: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.threshold-list {
+  display: grid;
+  gap: 8px;
+}
+
+.threshold-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.threshold-row .input {
+  width: 160px;
+}
+
+.threshold-number {
+  width: 90px !important;
+}
+
+.threshold-add {
+  justify-self: start;
+}
+
+.snapshot-list {
+  display: grid;
+  gap: 4px;
+}
+
+.snapshot-row {
+  display: grid;
+  grid-template-columns: 60px 170px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: var(--radius-md);
+}
+
+.snapshot-row:hover {
+  background: var(--bg-hover);
+}
+
+code {
+  font-family: var(--mono);
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.load-error {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 640px;
+  text-align: center;
+}
+
+.load-error-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--failure-badge-text);
+}
+
+.load-error-message {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.field-hint {
+  justify-self: start;
+  cursor: pointer;
+}

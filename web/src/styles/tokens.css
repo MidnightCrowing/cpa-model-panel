@@ -1,0 +1,69 @@
+/* Keeper warm-gray dark theme tokens. */
+
+:root {
+  color-scheme: dark;
+
+  --bg-secondary: #151412;
+  --bg-primary: #1d1b18;
+  --bg-tertiary: #262320;
+  --bg-hover: #2e2a26;
+  --bg-quinary: #191714;
+
+  --floating-surface: #2a2723;
+  --floating-border: #4a443d;
+  --floating-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+
+  --text-primary: #f6f4f1;
+  --text-secondary: #c9c3bb;
+  --text-tertiary: #9c958d;
+  --text-muted: var(--text-tertiary);
+
+  --border-color: #3a3530;
+  --border-primary: #4a453f;
+  --border-hover: #5a544d;
+
+  --primary-color: #8b8680;
+  --primary-hover: #9a948e;
+  --primary-active: #a6a099;
+  --primary-contrast: #ffffff;
+
+  --success-color: #10b981;
+  --warn-color: #e0aa14;
+  --error-color: #c65746;
+
+  --success-badge-bg: rgba(6, 78, 59, 0.3);
+  --success-badge-text: #6ee7b7;
+  --success-badge-border: #059669;
+
+  --failure-badge-bg: rgba(198, 87, 70, 0.24);
+  --failure-badge-text: #f1b0a6;
+  --failure-badge-border: rgba(198, 87, 70, 0.5);
+
+  --warn-badge-bg: rgba(224, 170, 20, 0.18);
+  --warn-badge-text: #ffd862;
+  --warn-badge-border: rgba(224, 170, 20, 0.4);
+
+  --info-badge-bg: rgba(90, 130, 170, 0.2);
+  --info-badge-text: #a8cbe8;
+  --info-badge-border: rgba(120, 160, 200, 0.45);
+
+  --count-badge-bg: rgba(139, 134, 128, 0.28);
+  --count-badge-text: var(--primary-active);
+
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3);
+  --radius-md: 8px;
+  --card-radius: 16px;
+  --control-height: 34px;
+  --control-height-sm: 28px;
+  --font-size: 12px;
+
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  font-family: "SF Pro Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: var(--font-size);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}

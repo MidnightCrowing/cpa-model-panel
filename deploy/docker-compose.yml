@@ -1,0 +1,26 @@
+# Runtime-only variant: ships a binary built elsewhere (see deploy/Dockerfile.runtime),
+# which avoids installing Node and Go on the server.
+#
+# Same environment knobs as the root compose file; PANEL_CONTEXT points at the
+# directory holding bin/cpa-model-panel-linux.
+services:
+  cpa-model-panel:
+    image: cpa-model-panel:local
+    build:
+      context: ${PANEL_CONTEXT:-..}
+      dockerfile: deploy/Dockerfile.runtime
+    container_name: cpa-model-panel
+    restart: unless-stopped
+    ports:
+      - "${PANEL_PORT:-5006}:5006"
+    env_file:
+      - ${PANEL_ENV_FILE:-./cpa-model-panel.env}
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      LISTEN: ":5006"
+      DATA_DIR: /data
+      CPA_BASE_URL: ${CPA_BASE_URL:-http://host.docker.internal:5000}
+    volumes:
+      - ${PANEL_DATA_DIR:-./data}:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

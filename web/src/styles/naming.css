@@ -1,0 +1,105 @@
+/* ── Naming page ────────────────────────────────────────── */
+
+.naming-list {
+  overflow: auto;
+}
+
+.naming-row {
+  display: grid;
+  grid-template-columns: 220px minmax(240px, 1fr) minmax(420px, 1.3fr);
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  height: 100%;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.naming-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  height: 34px;
+  background: var(--bg-quinary);
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.naming-row .cell {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  padding: 6px 0;
+}
+
+.naming-row:hover {
+  background: var(--bg-hover);
+}
+
+/* Row state is carried by the background, not by tags — a page of "已启用"
+   pills was pure noise. Only the exceptional states get colour. */
+.naming-row.is-excluded {
+  background: rgba(198, 87, 70, 0.09);
+}
+
+.naming-row.is-pending {
+  background: rgba(120, 160, 200, 0.09);
+}
+
+.naming-row.is-dirty {
+  box-shadow: inset 3px 0 0 var(--warn-color);
+}
+
+/* Every site and every original name is listed. Rows are sized from the data
+   (see rowHeightOf), so the virtual list stays exact; only a pathological row
+   with more entries than the cap scrolls inside its own cell. */
+.name-list {
+  display: grid;
+  align-content: center;
+  gap: 0;
+  min-width: 0;
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.name-list-item {
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name-list.is-strike .name-list-item {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.cell-remap {
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.name-input {
+  flex: 0 1 260px;
+  min-height: var(--control-height-sm);
+  font-family: var(--mono);
+}
+
+.name-input.is-dirty {
+  border-color: var(--warn-color);
+}
+
+.cell-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
