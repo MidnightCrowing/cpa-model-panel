@@ -34,7 +34,7 @@ function Shell() {
     )
   }
 
-  const { view, error, draft, dispatch, dirty, loading, saving, refreshing } = catalog
+  const { view, error, draft, dispatch, dirty, outOfSync, savable, loading, saving, refreshing } = catalog
 
   return (
     <div className="app-frame">
@@ -44,6 +44,8 @@ function Shell() {
         onTab={setTab}
         view={view}
         dirty={dirty}
+        outOfSync={outOfSync}
+        savable={savable}
         loading={loading}
         saving={saving}
         refreshing={refreshing}

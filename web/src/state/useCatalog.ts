@@ -56,10 +56,16 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
 
   const dirty = useMemo(() => countChanges(draft, baseline), [draft, baseline])
 
+  // A refresh can leave work to do without any draft edit: newly discovered
+  // models reach CPA only on save, and models the rules exclude are still in
+  // CPA until then. The save button has to stay live for those.
+  const outOfSync = (view?.stats.to_add ?? 0) + (view?.stats.to_remove ?? 0)
+  const savable = dirty > 0 || outOfSync > 0
+
   const save = useCallback(async () => {
     if (!view) return
     const ops = buildOps(draft, baseline)
-    if (ops.length === 0) {
+    if (ops.length === 0 && outOfSync === 0) {
       push('info', '没有需要保存的变更')
       return
     }
@@ -71,9 +77,9 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
 
       const detail: string[] = []
       if (result.written?.length) detail.push(`已写回：${result.written.join('、')}`)
+      if (result.restored > 0) detail.push(`新增/恢复 ${result.restored} 个模型`)
       else detail.push('CPA 配置无需改动')
       if (result.removed > 0) detail.push(`从 CPA 移除 ${result.removed} 个模型`)
-      if (result.restored > 0) detail.push(`写入 ${result.restored} 个新增/恢复的模型`)
       if (result.skipped > 0) detail.push(`${result.skipped} 项目标已不存在，已跳过`)
       if (result.snapshot) detail.push(`回滚快照 #${result.snapshot}`)
       push('ok', '已保存到 CPA', { detail })
@@ -86,7 +92,7 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
     } finally {
       setSaving(false)
     }
-  }, [baseline, dispatch, draft, fail, push, view])
+  }, [baseline, dispatch, draft, fail, outOfSync, push, view])
 
   const refresh = useCallback(async () => {
     setRefreshing({ completed: 0, total: 0 })
@@ -123,6 +129,8 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
     dispatch,
     baseline,
     dirty,
+    outOfSync,
+    savable,
     load,
     save,
     refresh,

@@ -319,3 +319,79 @@ func TestSettingsStayEditableWhenTheStoredRegexIsBroken(t *testing.T) {
 		t.Fatalf("repairing settings wrote to CPA: %v", fake.writes())
 	}
 }
+
+// Disabling a model removes it from CPA. The catalog must keep its copy or the
+// matrix toggle becomes one-way: the row would disappear and could never be
+// switched back on.
+func TestDisabledModelSurvivesTheRoundTrip(t *testing.T) {
+	fake := newFakeCPA(t)
+	server := newTestServer(t, fake)
+
+	view := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	body := `{"fingerprint":"` + view.Fingerprint + `","ops":[
+		{"type":"set_disabled","disabled":true,"targets":[{"site":"site-a","upstream":"old-model"}]}
+	]}`
+	if res := call(t, server, http.MethodPost, "/api/save", body); res.Code != http.StatusOK {
+		t.Fatalf("save = %d: %s", res.Code, res.Body.String())
+	}
+
+	after := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	var found *catalog.ModelView
+	for i := range after.Models {
+		if after.Models[i].Upstream == "old-model" {
+			found = &after.Models[i]
+		}
+	}
+	if found == nil {
+		t.Fatal("disabled model vanished from the catalog and can never be re-enabled")
+	}
+	if found.Present {
+		t.Fatal("model should have been removed from CPA")
+	}
+	if !found.Disabled {
+		t.Fatal("model should still be marked disabled")
+	}
+
+	// Re-enabling puts it back.
+	body = `{"fingerprint":"` + after.Fingerprint + `","ops":[
+		{"type":"set_disabled","disabled":false,"targets":[{"site":"site-a","upstream":"old-model"}]}
+	]}`
+	if res := call(t, server, http.MethodPost, "/api/save", body); res.Code != http.StatusOK {
+		t.Fatalf("re-enable = %d: %s", res.Code, res.Body.String())
+	}
+	final := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	for _, model := range final.Models {
+		if model.Upstream == "old-model" && !model.Present {
+			t.Fatal("re-enabled model was not written back to CPA")
+		}
+	}
+}
+
+// A refresh discovers models that CPA does not have yet. They only reach CPA
+// on save, so the panel has to report that there is something to save even
+// when the user made no edits.
+func TestCatalogReportsWorkPendingEvenWithoutEdits(t *testing.T) {
+	fake := newFakeCPA(t)
+	server := newTestServer(t, fake)
+
+	view := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	if view.Stats.ToAdd != 0 || view.Stats.ToRemove != 0 {
+		t.Fatalf("a freshly read catalog should match CPA: %+v", view.Stats)
+	}
+
+	// Excluding a model CPA still holds is one unit of pending work.
+	body := `{"prefixes":[],"suffixes":[],"whitelist":"^deepseek","version":{"enabled":false},"protocol":{"codex_regex":"","claude_regex":""}}`
+	res := call(t, server, http.MethodPut, "/api/settings", body)
+	if res.Code != http.StatusOK {
+		t.Fatalf("settings = %d: %s", res.Code, res.Body.String())
+	}
+	var payload struct {
+		View catalog.View `json:"view"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if payload.View.Stats.ToRemove != 2 {
+		t.Fatalf("to_remove = %d, want 2", payload.View.Stats.ToRemove)
+	}
+}

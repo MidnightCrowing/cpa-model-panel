@@ -116,7 +116,7 @@ export function buildNamingRows({ models, draft, aggregation, siteName }: BuildI
         }
       }
       if (model.kept || draft.keeps[entryKey]) keptCount++
-      if (model.pending) pendingCount++
+      if (!model.present) pendingCount++
       if (model.disabled) disabledCount++
       if (
         draft.renames[entryKey] !== undefined ||

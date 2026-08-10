@@ -156,18 +156,23 @@ func targetChannel(site Site, protocol string) cpa.Channel {
 }
 
 // Prune drops absent entries that no longer have a reason to exist: if CPA
-// does not have the model and no filter excluded it, it was deleted outside
-// the panel and must not be resurrected on the next save.
+// does not have the model and neither a filter nor a site-level disable
+// explains it, it was deleted outside the panel and must not be resurrected
+// on the next save.
+//
+// Disabled entries have to be kept for the same reason excluded ones are:
+// disabling removes the model from CPA, and the catalog copy is what makes
+// switching it back on possible.
 func Prune(cat *Catalog, view View) {
-	excluded := make(map[EntryRef]bool, len(view.Models))
+	withheld := make(map[EntryRef]bool, len(view.Models))
 	for _, m := range view.Models {
-		if m.Excluded != "" {
-			excluded[EntryRef{Site: m.Site, Upstream: m.Upstream}] = true
+		if m.Excluded != "" || m.Disabled {
+			withheld[EntryRef{Site: m.Site, Upstream: m.Upstream}] = true
 		}
 	}
 	kept := cat.Entries[:0]
 	for _, entry := range cat.Entries {
-		if entry.Present || entry.Pending || excluded[EntryRef{Site: entry.Site, Upstream: entry.Upstream}] {
+		if entry.Present || entry.Pending || withheld[EntryRef{Site: entry.Site, Upstream: entry.Upstream}] {
 			kept = append(kept, entry)
 		}
 	}

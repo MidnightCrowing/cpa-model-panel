@@ -25,6 +25,8 @@ export type ModelView = EntryRef & {
   disabled?: boolean
   /** Discovered upstream, not written to CPA yet. */
   pending?: boolean
+  /** Whether CPA currently holds this model. */
+  present: boolean
 }
 
 export type SiteView = {
@@ -42,6 +44,9 @@ export type Stats = {
   disabled: number
   pending: number
   by_exclusion: Record<string, number>
+  /** What a save would change even with an empty draft. */
+  to_add: number
+  to_remove: number
 }
 
 export type SeriesThreshold = {

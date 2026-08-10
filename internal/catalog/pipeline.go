@@ -52,6 +52,10 @@ type ModelView struct {
 	Kept      bool     `json:"kept,omitempty"`
 	Disabled  bool     `json:"disabled,omitempty"`
 	Pending   bool     `json:"pending,omitempty"`
+	// Present reports whether CPA currently holds the model. False means the
+	// next save would add it; true plus an exclusion means the next save would
+	// remove it.
+	Present bool `json:"present"`
 }
 
 type SiteView struct {
@@ -69,6 +73,11 @@ type Stats struct {
 	Disabled    int            `json:"disabled"`
 	Pending     int            `json:"pending"`
 	ByExclusion map[string]int `json:"by_exclusion"`
+	// ToAdd / ToRemove are the difference between the panel and CPA that a
+	// save would apply even with an empty draft: models discovered by a
+	// refresh, and models the rules exclude but CPA still has.
+	ToAdd    int `json:"to_add"`
+	ToRemove int `json:"to_remove"`
 }
 
 type View struct {
@@ -154,6 +163,7 @@ func Compute(in Inputs) (View, error) {
 			Pending:   entry.Pending,
 			Kept:      in.Keeps.Has(entry.Site, entry.Upstream),
 			Disabled:  in.Disabled.Has(entry.Site, entry.Upstream),
+			Present:   entry.Present,
 		}
 
 		switch {
@@ -174,6 +184,13 @@ func Compute(in Inputs) (View, error) {
 		view.Stats.Models++
 		if entry.Pending {
 			view.Stats.Pending++
+		}
+		if hidden := model.Excluded != "" || model.Disabled; hidden != !entry.Present {
+			if entry.Present {
+				view.Stats.ToRemove++
+			} else {
+				view.Stats.ToAdd++
+			}
 		}
 		if model.Excluded != "" {
 			view.Stats.Excluded++

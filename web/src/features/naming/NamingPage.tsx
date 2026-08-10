@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { EntryRef, ModelView, Protocol, View } from '../../api/types'
 import { FilterMenu } from '../../components/FilterMenu'
-import { Checkbox, Segmented } from '../../components/Controls'
+import { Segmented } from '../../components/Controls'
 import { VirtualList } from '../../components/VirtualList'
 import { useDebounced, usePersistentState } from '../../lib/hooks'
 import { UNKNOWN_VENDOR, VENDORS, vendorOf } from '../../lib/vendor'
@@ -26,6 +26,16 @@ type Props = {
 
 type ProtocolFilter = Protocol | 'all'
 
+/** What to do with models the rules removed: show them alongside the rest,
+ *  hide them to concentrate on naming, or look at nothing else. */
+type ExcludedView = 'all' | 'hide' | 'only'
+
+const EXCLUDED_VIEW_OPTIONS: Array<{ value: ExcludedView; label: string; title: string }> = [
+  { value: 'all', label: '全部', title: '被白名单 / 版本规则 / 手动删除排除的模型也一并显示' },
+  { value: 'hide', label: '不看已排除', title: '隐藏被白名单、版本规则和手动删除排除的模型' },
+  { value: 'only', label: '只看已排除', title: '只看被排除的模型，方便检查规则误杀' },
+]
+
 export function NamingPage({ view, draft, dispatch, saving }: Props) {
   const [rawQuery, setRawQuery] = useState('')
   const query = useDebounced(rawQuery)
@@ -33,7 +43,7 @@ export function NamingPage({ view, draft, dispatch, saving }: Props) {
   const [sites, setSites] = usePersistentState<string[]>('panel.naming.sites', [])
   const [protocol, setProtocol] = usePersistentState<ProtocolFilter>('panel.naming.protocol', 'all')
   const [aggregation, setAggregation] = usePersistentState<Aggregation>('panel.naming.aggregation', 'original')
-  const [onlyExcluded, setOnlyExcluded] = usePersistentState('panel.naming.onlyExcluded', false)
+  const [excludedView, setExcludedView] = usePersistentState<ExcludedView>('panel.naming.excludedView', 'all')
 
   const siteNames = useMemo(() => new Map(view.sites.map((site) => [site.id, site.name])), [view.sites])
   const siteName = useCallback((id: string) => siteNames.get(id) ?? id, [siteNames])
@@ -67,7 +77,10 @@ export function NamingPage({ view, draft, dispatch, saving }: Props) {
       if (protocol !== 'all' && model.protocol !== protocol) return false
       if (vendorSet.size > 0 && !vendorSet.has(vendorOfModel(model))) return false
       if (siteSet.size > 0 && !siteSet.has(siteName(model.site))) return false
-      if (onlyExcluded && !effectiveExcluded(model, draft)) return false
+      if (excludedView !== 'all') {
+        const excluded = !!effectiveExcluded(model, draft)
+        if (excludedView === 'only' ? !excluded : excluded) return false
+      }
       if (!needle) return true
       // Search covers model names only — sites have their own filter.
       return (
@@ -76,7 +89,7 @@ export function NamingPage({ view, draft, dispatch, saving }: Props) {
         model.suggested.toLowerCase().includes(needle)
       )
     })
-  }, [draft, onlyExcluded, protocol, query, siteName, sites, vendorOfModel, vendors, view.models])
+  }, [draft, excludedView, protocol, query, siteName, sites, vendorOfModel, vendors, view.models])
 
   const rows = useMemo(
     () => buildNamingRows({ models: filtered, draft, aggregation, siteName }),
@@ -129,7 +142,7 @@ export function NamingPage({ view, draft, dispatch, saving }: Props) {
         <FilterMenu label="供应商" allLabel="所有供应商" options={vendorOptions} selected={vendors} onChange={setVendors} />
         <FilterMenu label="站点" allLabel="所有站点" options={siteOptions} selected={sites} onChange={setSites} />
         <Segmented label="聚合" value={aggregation} onChange={setAggregation} options={AGGREGATION_OPTIONS} />
-        <Checkbox checked={onlyExcluded} onChange={setOnlyExcluded} label="只看已排除" />
+        <Segmented label="已排除" value={excludedView} onChange={setExcludedView} options={EXCLUDED_VIEW_OPTIONS} />
         <button
           type="button"
           className="btn btn-secondary"

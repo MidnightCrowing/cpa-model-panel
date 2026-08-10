@@ -34,6 +34,7 @@
   gap: 8px;
   height: 100%;
   padding: 6px 0;
+  overflow: hidden;
 }
 
 .naming-row:hover {
@@ -55,24 +56,43 @@
 }
 
 /* Every site and every original name is listed. Rows are sized from the data
-   (see rowHeightOf), so the virtual list stays exact; only a pathological row
-   with more entries than the cap scrolls inside its own cell. */
+   (see rowHeightOf), so the virtual list stays exact; a row with more entries
+   than the cap scrolls inside its own cell.
+
+   Flex column, not grid: a grid with auto rows and a bounded height squeezes
+   its rows to fit, which collapsed the 20px lines into each other once a row
+   had more entries than the cap. Items declare flex: 0 0 auto so they keep
+   their height and the cell scrolls instead.
+
+   `safe center` centres the short lists but falls back to start alignment
+   when the content overflows — plain centring pushes the first rows above the
+   scroll origin where they cannot be reached. */
 .name-list {
-  display: grid;
-  align-content: center;
-  gap: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
   min-width: 0;
   width: 100%;
-  max-height: 100%;
+  /* A definite height, not max-height: a percentage maximum does not resolve
+     through this flex chain, so the list simply grew past the row instead of
+     scrolling. */
+  height: 100%;
   overflow-y: auto;
   scrollbar-width: thin;
 }
 
 .name-list-item {
+  flex: 0 0 auto;
+  height: 20px;
   line-height: 20px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Make it obvious the cell holds more than it shows. */
+.name-list::-webkit-scrollbar {
+  width: 6px;
 }
 
 .name-list.is-strike .name-list-item {

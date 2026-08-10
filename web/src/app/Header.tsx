@@ -14,6 +14,8 @@ type Props = {
   onTab: (tab: Tab) => void
   view: View | null
   dirty: number
+  outOfSync: number
+  savable: boolean
   loading: boolean
   saving: boolean
   refreshing: RefreshState
@@ -29,6 +31,8 @@ export function Header({
   onTab,
   view,
   dirty,
+  outOfSync,
+  savable,
   loading,
   saving,
   refreshing,
@@ -58,11 +62,16 @@ export function Header({
       </nav>
 
       <div className="header-actions">
-        {dirty > 0 ? (
-          <span className="badge is-warn">未保存 {dirty} 项</span>
-        ) : (
-          <span className="badge is-ok">已同步</span>
+        {dirty > 0 && <span className="badge is-warn">未保存 {dirty} 项</span>}
+        {outOfSync > 0 && (
+          <span
+            className="badge is-warn"
+            title={`与 CPA 的差异：待写入 ${view?.stats.to_add ?? 0} 个，待移除 ${view?.stats.to_remove ?? 0} 个。点「保存到 CPA」应用`}
+          >
+            待同步 {outOfSync} 项
+          </span>
         )}
+        {dirty === 0 && outOfSync === 0 && <span className="badge is-ok">已同步</span>}
         {view && (
           <span className="badge mono" title={`可用 ${view.stats.active} · 被排除 ${view.stats.excluded} · 停用 ${view.stats.disabled} · 待写入 ${view.stats.pending}`}>
             {view.stats.active}/{view.stats.models}
@@ -78,7 +87,7 @@ export function Header({
         <button className="btn btn-ghost" onClick={onDiscard} disabled={dirty === 0 || saving}>
           丢弃草稿
         </button>
-        <button className="btn btn-primary" onClick={onSave} disabled={dirty === 0 || busy}>
+        <button className="btn btn-primary" onClick={onSave} disabled={!savable || busy}>
           {saving ? '保存中…' : '保存到 CPA'}
         </button>
         <button className="btn btn-danger" onClick={onLogout}>
