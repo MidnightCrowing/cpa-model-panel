@@ -19,11 +19,25 @@ const (
 
 // Settings is everything the pipeline is configured with.
 type Settings struct {
-	Prefixes  []string                  `json:"prefixes"`
-	Suffixes  []string                  `json:"suffixes"`
+	Prefixes []string `json:"prefixes"`
+	Suffixes []string `json:"suffixes"`
+	// Protect stops suffix stripping for names that legitimately end in one
+	// of them; Rewrites normalise what is left.
+	Protect   string                    `json:"protect"`
+	Rewrites  []clean.Rewrite           `json:"rewrites"`
 	Whitelist string                    `json:"whitelist"`
 	Version   clean.VersionFilterConfig `json:"version"`
 	Protocol  clean.ProtocolConfig      `json:"protocol"`
+}
+
+// CleaningRules is the cleaning half of the settings.
+func (s Settings) CleaningRules() clean.RulesConfig {
+	return clean.RulesConfig{
+		Prefixes: s.Prefixes,
+		Suffixes: s.Suffixes,
+		Protect:  s.Protect,
+		Rewrites: s.Rewrites,
+	}
 }
 
 type Inputs struct {
@@ -98,7 +112,10 @@ type View struct {
 // the naming page show excluded models with a restore button and lets a
 // relaxed rule bring models straight back.
 func Compute(in Inputs) (View, error) {
-	rules := clean.NewRules(in.Settings.Prefixes, in.Settings.Suffixes)
+	rules, err := clean.NewRules(in.Settings.CleaningRules())
+	if err != nil {
+		return View{}, fmt.Errorf("名称清洗规则无效: %w", err)
+	}
 
 	matcher, err := clean.NewProtocolMatcher(in.Settings.Protocol)
 	if err != nil {

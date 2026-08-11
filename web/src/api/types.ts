@@ -65,9 +65,18 @@ export type ProtocolConfig = {
   claude_regex: string
 }
 
+export type Rewrite = {
+  pattern: string
+  replace: string
+}
+
 export type Settings = {
   prefixes: string[]
   suffixes: string[]
+  /** Names matching this keep their suffix (qwen3-max is not qwen3). */
+  protect: string
+  /** Regex substitutions applied after stripping. */
+  rewrites: Rewrite[]
   whitelist: string
   version: VersionFilterConfig
   protocol: ProtocolConfig

@@ -320,7 +320,10 @@ func TestDiscoveredModelsLandInTheProtocolChannel(t *testing.T) {
 		t.Fatalf("matcher: %v", err)
 	}
 
-	rules := clean.NewRules(clean.DefaultPrefixes, clean.DefaultSuffixes)
+	rules, err := clean.NewRules(clean.RulesConfig{})
+	if err != nil {
+		t.Fatalf("NewRules: %v", err)
+	}
 	added := MergeDiscovered(cat, "示例站点 / office", []string{"gpt-6", "claude-opus-9", "llama-4"}, matcher, rules)
 	if added != 3 {
 		t.Fatalf("added = %d, want 3", added)

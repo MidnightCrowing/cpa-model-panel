@@ -78,7 +78,6 @@
      scrolling. */
   height: 100%;
   overflow-y: auto;
-  scrollbar-width: thin;
 }
 
 .name-list-item {
@@ -93,6 +92,10 @@
 /* Make it obvious the cell holds more than it shows. */
 .name-list::-webkit-scrollbar {
   width: 6px;
+}
+
+.name-list {
+  scrollbar-width: thin;
 }
 
 .name-list.is-strike .name-list-item {

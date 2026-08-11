@@ -18,6 +18,7 @@ type saveResponse struct {
 	OK       bool         `json:"ok"`
 	View     catalog.View `json:"view"`
 	Written  []string     `json:"written"`
+	Renamed  int          `json:"renamed"`
 	Kept     int          `json:"kept"`
 	Removed  int          `json:"removed"`
 	Restored int          `json:"restored"`
@@ -74,6 +75,19 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 
 	write := catalog.BuildWrite(st.Catalog, view, st.Snapshot, opResult.Priorities)
 
+	// Persist the edited catalog before touching CPA.
+	//
+	// Renames live on the catalog entry, and only models that actually reach
+	// CPA get their new name back on the next read. Without this, renaming
+	// something the rules currently exclude — or a model disabled at its site —
+	// silently reverted: the save wrote nothing, the reload rebuilt from the
+	// stale cache, and the edit was gone.
+	catalog.Prune(st.Catalog, view)
+	if err := s.Store.SaveCatalog(st.Catalog); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	changed := make([]cpa.Channel, 0, len(cpa.AllChannels))
 	for _, ch := range cpa.AllChannels {
 		if write.Changed[ch] {
@@ -83,6 +97,7 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 
 	response := saveResponse{
 		OK:       true,
+		Renamed:  opResult.Renamed,
 		Kept:     write.Kept,
 		Removed:  write.Removed,
 		Restored: write.Restored,

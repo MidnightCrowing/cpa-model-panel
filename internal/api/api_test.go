@@ -50,6 +50,17 @@ func newFakeCPA(t *testing.T) *fakeCPA {
 	}
 
 	fake.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v0/management/api-call" {
+			// Stand in for a site's own /v1/models.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status_code": http.StatusOK,
+				"body": map[string]any{"data": []map[string]string{
+					{"id": "deepseek-ai/DeepSeek-V3"},
+					{"id": "vendor/brand-new-model"},
+				}},
+			})
+			return
+		}
 		name := strings.TrimPrefix(r.URL.Path, "/v0/management/")
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
@@ -393,5 +404,124 @@ func TestCatalogReportsWorkPendingEvenWithoutEdits(t *testing.T) {
 	}
 	if payload.View.Stats.ToRemove != 2 {
 		t.Fatalf("to_remove = %d, want 2", payload.View.Stats.ToRemove)
+	}
+}
+
+// The whole discovery path: refresh finds a model CPA does not have, the user
+// renames it, and the save has to write it with the new name.
+func TestDiscoveredModelCanBeRenamedAndSaved(t *testing.T) {
+	fake := newFakeCPA(t)
+	server := newTestServer(t, fake)
+
+	res := call(t, server, http.MethodPost, "/api/catalog/refresh", "")
+	if res.Code != http.StatusOK {
+		t.Fatalf("refresh = %d: %s", res.Code, res.Body.String())
+	}
+	if len(fake.writes()) != 0 {
+		t.Fatalf("refresh wrote to CPA: %v", fake.writes())
+	}
+
+	view := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	var discovered *catalog.ModelView
+	for i := range view.Models {
+		if view.Models[i].Upstream == "vendor/brand-new-model" {
+			discovered = &view.Models[i]
+		}
+	}
+	if discovered == nil {
+		t.Fatal("refresh did not add the new model to the catalog")
+	}
+	if discovered.Present || !discovered.Pending {
+		t.Fatalf("model should be pending and absent from CPA: %+v", discovered)
+	}
+	if view.Stats.ToAdd != 1 {
+		t.Fatalf("to_add = %d, want 1", view.Stats.ToAdd)
+	}
+
+	body := `{"fingerprint":"` + view.Fingerprint + `","ops":[
+		{"type":"rename","to":"brand-new","targets":[{"site":"site-a","upstream":"vendor/brand-new-model"}]}
+	]}`
+	save := call(t, server, http.MethodPost, "/api/save", body)
+	if save.Code != http.StatusOK {
+		t.Fatalf("save = %d: %s", save.Code, save.Body.String())
+	}
+	if len(fake.writes()) == 0 {
+		t.Fatal("save reported nothing to write, so the discovered model never reached CPA")
+	}
+
+	fake.mu.Lock()
+	written, _ := json.Marshal(fake.lists["openai-compatibility"])
+	fake.mu.Unlock()
+	if !strings.Contains(string(written), `"name":"vendor/brand-new-model"`) {
+		t.Fatalf("discovered model missing from CPA: %s", written)
+	}
+	if !strings.Contains(string(written), `"alias":"brand-new"`) {
+		t.Fatalf("rename was lost: %s", written)
+	}
+
+	final := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	for _, model := range final.Models {
+		if model.Upstream == "vendor/brand-new-model" {
+			if !model.Present {
+				t.Fatal("model still reported as missing from CPA after the save")
+			}
+			if model.Alias != "brand-new" {
+				t.Fatalf("alias after reload = %q, want brand-new", model.Alias)
+			}
+		}
+	}
+}
+
+// Renaming a model the rules currently exclude has to stick in the panel even
+// though nothing reaches CPA: relaxing the rule later must bring the model
+// back under its new name, not the old one.
+func TestRenamingAnExcludedModelIsRemembered(t *testing.T) {
+	fake := newFakeCPA(t)
+	server := newTestServer(t, fake)
+
+	settings := `{"prefixes":[],"suffixes":[],"whitelist":"^deepseek","version":{"enabled":false},"protocol":{"codex_regex":"","claude_regex":""}}`
+	if res := call(t, server, http.MethodPut, "/api/settings", settings); res.Code != http.StatusOK {
+		t.Fatalf("settings = %d: %s", res.Code, res.Body.String())
+	}
+
+	view := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	body := `{"fingerprint":"` + view.Fingerprint + `","ops":[
+		{"type":"rename","to":"renamed-while-excluded","targets":[{"site":"site-a","upstream":"old-model"}]}
+	]}`
+	res := call(t, server, http.MethodPost, "/api/save", body)
+	if res.Code != http.StatusOK {
+		t.Fatalf("save = %d: %s", res.Code, res.Body.String())
+	}
+
+	after := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	found := false
+	for _, model := range after.Models {
+		if model.Upstream == "old-model" {
+			found = true
+			if model.Alias != "renamed-while-excluded" {
+				t.Fatalf("alias = %q, want the rename to survive", model.Alias)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("excluded model disappeared from the catalog")
+	}
+
+	// Relaxing the whitelist writes it to CPA under the new name.
+	relaxed := `{"prefixes":[],"suffixes":[],"whitelist":"","version":{"enabled":false},"protocol":{"codex_regex":"","claude_regex":""}}`
+	if res := call(t, server, http.MethodPut, "/api/settings", relaxed); res.Code != http.StatusOK {
+		t.Fatalf("relax = %d: %s", res.Code, res.Body.String())
+	}
+	restored := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	body = `{"fingerprint":"` + restored.Fingerprint + `","ops":[]}`
+	if res := call(t, server, http.MethodPost, "/api/save", body); res.Code != http.StatusOK {
+		t.Fatalf("restore save = %d: %s", res.Code, res.Body.String())
+	}
+
+	fake.mu.Lock()
+	written, _ := json.Marshal(fake.lists["openai-compatibility"])
+	fake.mu.Unlock()
+	if !strings.Contains(string(written), `"alias":"renamed-while-excluded"`) {
+		t.Fatalf("restored model lost its name: %s", written)
 	}
 }

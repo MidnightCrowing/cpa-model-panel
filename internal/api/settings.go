@@ -52,7 +52,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := s.Store.SetCleanRules(settings.Prefixes, settings.Suffixes); err != nil {
+		if err := s.Store.SetCleanRules(settings.CleaningRules()); err != nil {
 			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
 		}

@@ -11,6 +11,8 @@ import (
 const (
 	keyCleanPrefixes = "clean_prefixes"
 	keyCleanSuffixes = "clean_suffixes"
+	keyCleanProtect  = "clean_protect"
+	keyCleanRewrites = "clean_rewrites"
 	keyWhitelist     = "model_whitelist_regex"
 	keyVersionFilter = "version_filter_config"
 	keyProtocolRegex = "protocol_regex"
@@ -66,6 +68,20 @@ func (s *Store) Settings() (catalog.Settings, error) {
 		out.Suffixes = suffixes
 	}
 
+	var protect string
+	if found, err := s.getJSON(keyCleanProtect, &protect); err != nil {
+		return out, err
+	} else if found {
+		out.Protect = protect
+	}
+
+	var rewrites []clean.Rewrite
+	if found, err := s.getJSON(keyCleanRewrites, &rewrites); err != nil {
+		return out, err
+	} else if found {
+		out.Rewrites = rewrites
+	}
+
 	var whitelist string
 	if found, err := s.getJSON(keyWhitelist, &whitelist); err != nil {
 		return out, err
@@ -91,11 +107,17 @@ func (s *Store) Settings() (catalog.Settings, error) {
 	return out, nil
 }
 
-func (s *Store) SetCleanRules(prefixes, suffixes []string) error {
-	if err := s.setJSON(keyCleanPrefixes, prefixes); err != nil {
+func (s *Store) SetCleanRules(cfg clean.RulesConfig) error {
+	if err := s.setJSON(keyCleanPrefixes, cfg.Prefixes); err != nil {
 		return err
 	}
-	return s.setJSON(keyCleanSuffixes, suffixes)
+	if err := s.setJSON(keyCleanSuffixes, cfg.Suffixes); err != nil {
+		return err
+	}
+	if err := s.setJSON(keyCleanProtect, cfg.Protect); err != nil {
+		return err
+	}
+	return s.setJSON(keyCleanRewrites, cfg.Rewrites)
 }
 
 func (s *Store) SetWhitelist(pattern string) error {

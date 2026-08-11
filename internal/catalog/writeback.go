@@ -62,7 +62,10 @@ func BuildWrite(cat *Catalog, view View, snap *cpa.Snapshot, priorities map[stri
 	for entryIdx := range cat.Entries {
 		entry := &cat.Entries[entryIdx]
 		ref := EntryRef{Site: entry.Site, Upstream: entry.Upstream}
-		if excluded[ref] || disabled[ref] {
+		// Record whether this write leaves the model out, so a later reconcile
+		// can tell the panel's own removals from CPA-side deletions.
+		entry.Withheld = excluded[ref] || disabled[ref]
+		if entry.Withheld {
 			continue
 		}
 		site := cat.Site(entry.Site)

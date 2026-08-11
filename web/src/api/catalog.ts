@@ -24,6 +24,9 @@ export function fetchSettings() {
 }
 
 export function putSettings(settings: Settings) {
+  // The server rejects unknown shapes, and older stored settings may predate
+  // these fields.
+  settings = { ...settings, protect: settings.protect ?? '', rewrites: settings.rewrites ?? [] }
   return request<{ ok: boolean; view: View }>('/api/settings', {
     method: 'PUT',
     body: JSON.stringify(settings),

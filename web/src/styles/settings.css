@@ -134,3 +134,15 @@ code {
   justify-self: start;
   cursor: pointer;
 }
+
+.rewrite-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rewrite-row .input {
+  flex: 1 1 220px;
+  min-width: 180px;
+}

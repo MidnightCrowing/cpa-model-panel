@@ -2,8 +2,17 @@ package clean
 
 import "testing"
 
+func mustRules(t *testing.T, cfg RulesConfig) Rules {
+	t.Helper()
+	rules, err := NewRules(cfg)
+	if err != nil {
+		t.Fatalf("NewRules: %v", err)
+	}
+	return rules
+}
+
 func TestCleanStripsPrefixesSuffixesAndPaths(t *testing.T) {
-	rules := NewRules(nil, nil)
+	rules := mustRules(t, RulesConfig{})
 	cases := map[string]string{
 		"[free]claude-opus-4-6":   "claude-opus-4-6",
 		"deepseek-ai/DeepSeek-V3": "deepseek-v3",
@@ -21,7 +30,7 @@ func TestCleanStripsPrefixesSuffixesAndPaths(t *testing.T) {
 }
 
 func TestCleanNeverEmptiesAName(t *testing.T) {
-	rules := NewRules([]string{"gpt"}, []string{"-5"})
+	rules := mustRules(t, RulesConfig{Prefixes: []string{"gpt"}, Suffixes: []string{"-5"}})
 	if got := rules.Clean("gpt-5"); got == "" {
 		t.Fatal("cleaning consumed the whole name")
 	}
@@ -150,5 +159,58 @@ func TestEmptyProtocolPatternMatchesNothing(t *testing.T) {
 	}
 	if got := matcher.Classify("gpt-5.4"); got != ProtocolOpenAI {
 		t.Errorf("Classify with no patterns = %q, want openai", got)
+	}
+}
+
+// "-max" is noise on gpt-5.6-luna-max and part of the name on qwen3-max. The
+// protect pattern is how that distinction gets stated, and stripping stops as
+// soon as the remaining name matches it.
+func TestProtectStopsSuffixStripping(t *testing.T) {
+	rules := mustRules(t, RulesConfig{
+		Suffixes: []string{"-max", "-preview", "-thinking", ":free"},
+		Protect:  `(?i)^qwen.*-max$`,
+	})
+	cases := map[string]string{
+		"qwen3-max":                    "qwen3-max",
+		"qwen3.8-max-preview":          "qwen3.8-max",
+		"qwen3.8-max-preview-thinking": "qwen3.8-max",
+		"qwen-image-edit-max":          "qwen-image-edit-max",
+		"gpt-5.6-luna-max":             "gpt-5.6-luna",
+		"claude-opus-5-max":            "claude-opus-5",
+	}
+	for in, want := range cases {
+		if got := rules.Clean(in); got != want {
+			t.Errorf("Clean(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Dash-versus-dot is vendor specific: gpt-5-5 means 5.5, while Anthropic
+// spells claude-haiku-4-5 with dashes on purpose.
+func TestRewritesNormaliseOnlyWhatTheyTarget(t *testing.T) {
+	rules := mustRules(t, RulesConfig{
+		Rewrites: []Rewrite{{Pattern: `^gpt-(\d+)-(\d+)`, Replace: `gpt-${1}.${2}`}},
+	})
+	cases := map[string]string{
+		"gpt-5-5":           "gpt-5.5",
+		"gpt-5-5-chat":      "gpt-5.5-chat",
+		"gpt-5-6-luna":      "gpt-5.6-luna",
+		"gpt-5.4":           "gpt-5.4",
+		"claude-haiku-4-5":  "claude-haiku-4-5",
+		"claude-3-5-sonnet": "claude-3-5-sonnet",
+	}
+	for in, want := range cases {
+		if got := rules.Clean(in); got != want {
+			t.Errorf("Clean(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestBadCleaningPatternsAreRejected(t *testing.T) {
+	if _, err := NewRules(RulesConfig{Protect: "("}); err == nil {
+		t.Error("invalid protect pattern should fail")
+	}
+	if _, err := NewRules(RulesConfig{Rewrites: []Rewrite{{Pattern: "(", Replace: ""}}}); err == nil {
+		t.Error("invalid rewrite pattern should fail")
 	}
 }

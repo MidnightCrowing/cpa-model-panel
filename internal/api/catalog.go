@@ -79,7 +79,11 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		send(map[string]any{"type": "done", "error": err.Error()})
 		return
 	}
-	rules := clean.NewRules(st.Settings.Prefixes, st.Settings.Suffixes)
+	rules, err := clean.NewRules(st.Settings.CleaningRules())
+	if err != nil {
+		send(map[string]any{"type": "done", "error": err.Error()})
+		return
+	}
 
 	sites := st.Catalog.Sites()
 	send(map[string]any{"type": "start", "total": len(sites)})

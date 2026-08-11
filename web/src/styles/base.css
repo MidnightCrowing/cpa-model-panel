@@ -28,6 +28,16 @@ button {
   cursor: pointer;
 }
 
+/* Standard properties first: Chrome ignores the ::-webkit-scrollbar
+   pseudo-elements entirely on any element that sets scrollbar-width or
+   scrollbar-color, so mixing the two left some scrollers with the default
+   light chrome. The webkit block stays for Safari, which has no support for
+   the standard ones yet. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) transparent;
+}
+
 ::-webkit-scrollbar {
   width: 9px;
   height: 9px;
@@ -38,12 +48,19 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+  background: var(--border-hover);
   border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-hover);
+  background: var(--text-quaternary, #6f6962);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .mono {

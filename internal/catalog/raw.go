@@ -172,7 +172,8 @@ func Prune(cat *Catalog, view View) {
 	}
 	kept := cat.Entries[:0]
 	for _, entry := range cat.Entries {
-		if entry.Present || entry.Pending || withheld[EntryRef{Site: entry.Site, Upstream: entry.Upstream}] {
+		ref := EntryRef{Site: entry.Site, Upstream: entry.Upstream}
+		if entry.Present || entry.Pending || entry.Withheld || withheld[ref] {
 			kept = append(kept, entry)
 		}
 	}

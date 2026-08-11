@@ -34,6 +34,12 @@ type Entry struct {
 	// never been written to CPA yet.
 	Pending bool `json:"pending,omitempty"`
 
+	// Withheld records that the panel's own last write left this model out.
+	// It is what separates "we removed it and can put it back" from "someone
+	// deleted it in CPA and it must stay gone" — the two look identical
+	// otherwise, and Prune has to keep the first and drop the second.
+	Withheld bool `json:"withheld,omitempty"`
+
 	Occurrences []Occurrence `json:"occurrences"`
 }
 
