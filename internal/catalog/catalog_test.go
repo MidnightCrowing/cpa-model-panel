@@ -570,3 +570,42 @@ func TestRoutingOffStillReproducesCpaExactly(t *testing.T) {
 		}
 	}
 }
+
+// A site's priority is whatever openai-compatibility says. Filling it in from
+// another channel meant a site set back to 0 in CPA kept showing its old
+// number, which looks exactly like a panel that will not refresh.
+func TestSitePriorityComesFromTheOpenAiEntry(t *testing.T) {
+	snap := fixture()
+	// The codex entry carries a priority; the openai one does not.
+	snap.Channels[cpa.ChannelCodex][0].Priority = 7
+	snap.Channels[cpa.ChannelCodex][0].Raw["priority"] = float64(7)
+
+	for _, site := range BuildSites(snap) {
+		if site.Name == "示例站点 / office" && site.Priority != 0 {
+			t.Fatalf("priority = %d, want 0 (the openai entry has none)", site.Priority)
+		}
+	}
+}
+
+// A site configured only in codex-api-key has no openai entry to read, so its
+// own priority is the only answer.
+func TestCodexOnlySiteKeepsItsOwnPriority(t *testing.T) {
+	providers, err := cpa.ProvidersFromPayload([]map[string]any{{
+		"base-url": "https://codex-only.example.com/v1",
+		"api-key":  "k",
+		"priority": float64(9),
+		"models":   []any{map[string]any{"name": "gpt-5.4"}},
+	}})
+	if err != nil {
+		t.Fatalf("payload: %v", err)
+	}
+	snap := &cpa.Snapshot{Channels: map[cpa.Channel][]cpa.Provider{cpa.ChannelCodex: providers}}
+
+	sites := BuildSites(snap)
+	if len(sites) != 1 {
+		t.Fatalf("sites = %d, want 1", len(sites))
+	}
+	if sites[0].Priority != 9 {
+		t.Fatalf("priority = %d, want 9", sites[0].Priority)
+	}
+}

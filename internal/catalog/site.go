@@ -38,9 +38,6 @@ func BuildSites(snap *cpa.Snapshot) []Site {
 					sites[existing].APIKey = keys[0]
 				}
 			}
-			if sites[existing].Priority == 0 {
-				sites[existing].Priority = p.Priority
-			}
 			return existing
 		}
 		site := Site{
@@ -85,11 +82,16 @@ func BuildSites(snap *cpa.Snapshot) []Site {
 	}
 
 	// Pass 2: attach codex/claude entries to a site.
+	//
+	// The site's priority is whatever openai-compatibility says, because that
+	// is the entry the panel writes priorities to. Falling back to a non-zero
+	// value from another channel made a site edited down to 0 in CPA keep
+	// showing its old number, which reads as the panel being stale.
 	for _, ch := range []cpa.Channel{cpa.ChannelCodex, cpa.ChannelClaude} {
 		for idx, p := range snap.Providers(ch) {
 			if position, ok := resolveSite(p, byURL, byKey, byHost); ok {
 				sites[position].Providers[ch] = idx
-				if sites[position].Priority == 0 {
+				if !sites[position].HasChannel(cpa.ChannelOpenAI) && sites[position].Priority == 0 {
 					sites[position].Priority = p.Priority
 				}
 				continue

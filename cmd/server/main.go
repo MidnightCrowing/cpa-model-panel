@@ -59,6 +59,13 @@ func spaHandler() http.Handler {
 	fileServer := http.FileServer(http.FS(sub))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
+		// Asset filenames are content-hashed and may be cached hard; the shell
+		// that points at them must not be, or a deploy goes unnoticed.
+		if path == "/" || !strings.Contains(path, "/assets/") {
+			w.Header().Set("Cache-Control", "no-store")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
 		if path == "/" {
 			fileServer.ServeHTTP(w, r)
 			return

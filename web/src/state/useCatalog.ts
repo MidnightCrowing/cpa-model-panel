@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchView, refreshCatalog, saveOps } from '../api/catalog'
 import { ApiError, clearToken } from '../api/client'
 import type { View } from '../api/types'
@@ -49,12 +49,35 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
     if (enabled) void load()
   }, [enabled, load])
 
+
   const baseline = useMemo(
     () => baselineOf(view?.models ?? [], view?.sites ?? []),
     [view],
   )
 
   const dirty = useMemo(() => countChanges(draft, baseline), [draft, baseline])
+
+  const savingRef = useRef(false)
+  const refreshingRef = useRef(false)
+  savingRef.current = saving
+  refreshingRef.current = refreshing !== null
+  // CPA can be edited elsewhere, so coming back to the tab re-reads it. Skipped
+  // while a draft is open: silently replacing the view would throw away edits.
+  const hasDraft = dirty > 0
+  useEffect(() => {
+    if (!enabled) return
+    const onFocus = () => {
+      if (document.visibilityState !== 'visible') return
+      if (hasDraft || savingRef.current || refreshingRef.current) return
+      void load()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+  }, [enabled, hasDraft, load])
 
   // A refresh can leave work to do without any draft edit: newly discovered
   // models reach CPA only on save, and models the rules exclude are still in
