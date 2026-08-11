@@ -160,3 +160,39 @@
   outline: 2px solid var(--warn-color);
   outline-offset: 1px;
 }
+
+/* Row-level protocol mark: which CPA list this row is written to. Visible in
+   the "全部" view, so telling protocols apart never requires switching tabs. */
+.proto-mark {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.proto-mark.is-codex {
+  color: #9ecbff;
+  border-color: rgba(120, 160, 200, 0.5);
+  background: rgba(90, 130, 170, 0.18);
+}
+
+.proto-mark.is-claude {
+  color: #f0b48a;
+  border-color: rgba(200, 140, 90, 0.5);
+  background: rgba(180, 120, 70, 0.18);
+}
+
+.proto-mark.is-mixed {
+  color: var(--warn-badge-text);
+  border-color: var(--warn-badge-border);
+  background: var(--warn-badge-bg);
+}

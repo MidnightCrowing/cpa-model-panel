@@ -4,7 +4,9 @@ import { refKey } from '../../lib/keys'
 export type MatrixRow = {
   key: string
   name: string
-  protocol: Protocol
+  /** Protocols present in this row — normally one, which is also the CPA list
+   *  the row is written to. */
+  protocols: Protocol[]
   /** site id → the (site, upstream) pairs that produce this name there */
   cells: Map<string, EntryRef[]>
   refs: EntryRef[]
@@ -43,9 +45,10 @@ export function buildMatrix({ models, sites, renames, hideEmptyRows, hideEmptyCo
 
     let row = byName.get(name)
     if (!row) {
-      row = { key: name, name, protocol: model.protocol, cells: new Map(), refs: [] }
+      row = { key: name, name, protocols: [], cells: new Map(), refs: [] }
       byName.set(name, row)
     }
+    if (!row.protocols.includes(model.protocol)) row.protocols.push(model.protocol)
     const ref = { site: model.site, upstream: model.upstream }
     const cell = row.cells.get(model.site)
     if (cell) cell.push(ref)

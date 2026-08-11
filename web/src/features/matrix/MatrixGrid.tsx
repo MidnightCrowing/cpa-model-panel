@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import type { EntryRef, SiteView } from '../../api/types'
+import type { EntryRef, Protocol, SiteView } from '../../api/types'
 import { VirtualList } from '../../components/VirtualList'
 import { refKey } from '../../lib/keys'
 import type { MatrixRow } from './visibility'
@@ -86,6 +86,7 @@ const MatrixRowView = memo(function MatrixRowView({ row, sites, disabledDraft, b
   return (
     <div className={`matrix-row ${on === 0 ? 'is-all-off' : ''}`} style={{ width }}>
       <div className="cell cell-name">
+        <ProtocolMark protocols={row.protocols} />
         <span className="mono matrix-name" title={row.name}>
           {row.name}
         </span>
@@ -127,6 +128,38 @@ const MatrixRowView = memo(function MatrixRowView({ row, sites, disabledDraft, b
     </div>
   )
 })
+
+const PROTOCOL_LABEL: Record<Protocol, string> = {
+  openai: 'OA',
+  codex: 'CX',
+  claude: 'CL',
+}
+
+const PROTOCOL_TARGET: Record<Protocol, string> = {
+  openai: 'openai-compatibility',
+  codex: 'codex-api-key',
+  claude: 'claude-api-key',
+}
+
+/** Which CPA list this row is written to. */
+function ProtocolMark({ protocols }: { protocols: Protocol[] }) {
+  if (protocols.length === 1) {
+    const protocol = protocols[0]
+    return (
+      <span className={`proto-mark is-${protocol}`} title={`写入 ${PROTOCOL_TARGET[protocol]}`}>
+        {PROTOCOL_LABEL[protocol]}
+      </span>
+    )
+  }
+  return (
+    <span
+      className="proto-mark is-mixed"
+      title={`这一行的模型分属不同协议，会被写进多张表：${protocols.map((p) => PROTOCOL_TARGET[p]).join('、')}`}
+    >
+      混
+    </span>
+  )
+}
 
 function isEnabled(refs: EntryRef[], draft: Record<string, boolean>, base: Set<string>): boolean {
   return refs.some((ref) => {

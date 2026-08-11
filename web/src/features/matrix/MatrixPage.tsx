@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { EntryRef, ModelView, SiteView, View } from '../../api/types'
-import { Checkbox } from '../../components/Controls'
+import type { EntryRef, ModelView, Protocol, SiteView, View } from '../../api/types'
+import { Checkbox, Segmented } from '../../components/Controls'
 import { FilterMenu } from '../../components/FilterMenu'
 import { useDebounced, usePersistentState } from '../../lib/hooks'
 import { refKey } from '../../lib/keys'
@@ -16,9 +16,12 @@ type Props = {
   dispatch: (action: DraftAction) => void
 }
 
+type ProtocolFilter = Protocol | 'all'
+
 export function MatrixPage({ view, draft, dispatch }: Props) {
   const [rawQuery, setRawQuery] = useState('')
   const query = useDebounced(rawQuery)
+  const [protocol, setProtocol] = usePersistentState<ProtocolFilter>('panel.matrix.protocol', 'all')
   const [vendors, setVendors] = usePersistentState<string[]>('panel.matrix.vendors', [])
   const [sites, setSites] = usePersistentState<string[]>('panel.matrix.sites', [])
   const [hideEmptyRows, setHideEmptyRows] = usePersistentState('panel.matrix.hideRows', true)
@@ -50,12 +53,13 @@ export function MatrixPage({ view, draft, dispatch }: Props) {
     const vendorSet = new Set(vendors)
     return view.models.filter((model) => {
       if (effectiveExcluded(model, draft)) return false
+      if (protocol !== 'all' && model.protocol !== protocol) return false
       if (vendorSet.size > 0 && !vendorSet.has(vendorOfModel(model))) return false
       if (!needle) return true
       const alias = draft.renames[refKey(model.site, model.upstream)] ?? model.alias
       return model.upstream.toLowerCase().includes(needle) || (alias || '').toLowerCase().includes(needle)
     })
-  }, [draft, query, vendorOfModel, vendors, view.models])
+  }, [draft, protocol, query, vendorOfModel, vendors, view.models])
 
   const selectedSites = useMemo(() => {
     if (sites.length === 0) return view.sites
@@ -124,6 +128,17 @@ export function MatrixPage({ view, draft, dispatch }: Props) {
           placeholder="搜索模型名…"
           value={rawQuery}
           onChange={(event) => setRawQuery(event.target.value)}
+        />
+        <Segmented
+          label="协议"
+          value={protocol}
+          onChange={setProtocol}
+          options={[
+            { value: 'all', label: '全部', title: '显示全部，每行左侧的角标标明它属于哪张 CPA 表' },
+            { value: 'openai', label: 'OpenAI', title: '只看写入 openai-compatibility 的模型' },
+            { value: 'codex', label: 'Codex', title: '只看写入 codex-api-key 的模型' },
+            { value: 'claude', label: 'Claude', title: '只看写入 claude-api-key 的模型' },
+          ]}
         />
         <FilterMenu label="供应商" allLabel="所有供应商" options={vendorOptions} selected={vendors} onChange={setVendors} />
         <FilterMenu label="站点" allLabel="所有站点" options={siteOptions} selected={sites} onChange={setSites} />
