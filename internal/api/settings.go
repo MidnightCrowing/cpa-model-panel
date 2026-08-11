@@ -68,6 +68,10 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		if err := s.Store.SetRouteByProtocol(settings.RouteByProtocol); err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "view": view})
 

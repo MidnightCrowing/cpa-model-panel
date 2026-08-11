@@ -525,3 +525,69 @@ func TestRenamingAnExcludedModelIsRemembered(t *testing.T) {
 		t.Fatalf("restored model lost its name: %s", written)
 	}
 }
+
+// One save has to converge: after it, the panel and CPA agree and a second
+// save finds nothing to do. Anything left over shows up as a stuck "待写入"
+// badge and a save button that never goes quiet.
+func TestSaveConvergesInOnePass(t *testing.T) {
+	fake := newFakeCPA(t)
+	server := newTestServer(t, fake)
+
+	// Discovery adds models CPA lacks...
+	if res := call(t, server, http.MethodPost, "/api/catalog/refresh", ""); res.Code != http.StatusOK {
+		t.Fatalf("refresh = %d: %s", res.Code, res.Body.String())
+	}
+	// ...and a rule removes one CPA has.
+	settings := `{"prefixes":[],"suffixes":[],"whitelist":"^(deepseek|vendor|openai)","version":{"enabled":false},"protocol":{"codex_regex":"","claude_regex":""}}`
+	if res := call(t, server, http.MethodPut, "/api/settings", settings); res.Code != http.StatusOK {
+		t.Fatalf("settings = %d: %s", res.Code, res.Body.String())
+	}
+
+	view := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	if view.Stats.ToAdd == 0 || view.Stats.ToRemove == 0 {
+		t.Fatalf("test needs both directions pending: %+v", view.Stats)
+	}
+
+	// A draft edit on top, to cover "edits plus pending work in one save".
+	body := `{"fingerprint":"` + view.Fingerprint + `","ops":[
+		{"type":"rename","to":"renamed-in-the-same-save","targets":[{"site":"site-a","upstream":"vendor/brand-new-model"}]}
+	]}`
+	if res := call(t, server, http.MethodPost, "/api/save", body); res.Code != http.StatusOK {
+		t.Fatalf("save = %d: %s", res.Code, res.Body.String())
+	}
+
+	after := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	if after.Stats.ToAdd != 0 || after.Stats.ToRemove != 0 {
+		stuck := []string{}
+		for _, m := range after.Models {
+			if (!m.Present && m.Excluded == "" && !m.Disabled) || (m.Present && (m.Excluded != "" || m.Disabled)) {
+				stuck = append(stuck, m.Site+"/"+m.Upstream+" present="+boolText(m.Present)+" excluded="+m.Excluded)
+			}
+		}
+		t.Fatalf("one save did not converge: to_add=%d to_remove=%d, stuck=%v",
+			after.Stats.ToAdd, after.Stats.ToRemove, stuck)
+	}
+	for _, m := range after.Models {
+		if m.Upstream == "vendor/brand-new-model" && m.Pending {
+			t.Error("model written to CPA is still flagged pending, so the 待写入 badge would stick")
+		}
+	}
+
+	// A second save must be a no-op.
+	before := len(fake.writes())
+	body = `{"fingerprint":"` + after.Fingerprint + `","ops":[]}`
+	res := call(t, server, http.MethodPost, "/api/save", body)
+	if res.Code != http.StatusOK {
+		t.Fatalf("second save = %d: %s", res.Code, res.Body.String())
+	}
+	if len(fake.writes()) != before {
+		t.Fatalf("second save wrote again: %v", fake.writes()[before:])
+	}
+}
+
+func boolText(v bool) string {
+	if v {
+		return "true"
+	}
+	return "false"
+}

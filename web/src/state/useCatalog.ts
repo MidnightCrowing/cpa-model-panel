@@ -59,7 +59,7 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
   // A refresh can leave work to do without any draft edit: newly discovered
   // models reach CPA only on save, and models the rules exclude are still in
   // CPA until then. The save button has to stay live for those.
-  const outOfSync = (view?.stats.to_add ?? 0) + (view?.stats.to_remove ?? 0)
+  const outOfSync = (view?.stats.to_add ?? 0) + (view?.stats.to_remove ?? 0) + (view?.stats.to_move ?? 0)
   const savable = dirty > 0 || outOfSync > 0
 
   const save = useCallback(async () => {
@@ -80,6 +80,11 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
       if (result.restored > 0) detail.push(`新增/恢复 ${result.restored} 个模型`)
       else detail.push('CPA 配置无需改动')
       if (result.removed > 0) detail.push(`从 CPA 移除 ${result.removed} 个模型`)
+      if (result.moved > 0) detail.push(`按协议归位 ${result.moved} 个模型`)
+      if (result.created?.length) detail.push(`新建站点条目：${result.created.join('、')}`)
+      if (result.renamed > 0 && !result.written?.length) {
+        detail.push(`${result.renamed} 处改名已记录在面板；这些模型当前不写入 CPA，放开规则后会带着新名字回去`)
+      }
       if (result.skipped > 0) detail.push(`${result.skipped} 项目标已不存在，已跳过`)
       if (result.snapshot) detail.push(`回滚快照 #${result.snapshot}`)
       push('ok', '已保存到 CPA', { detail })

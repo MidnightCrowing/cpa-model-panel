@@ -62,6 +62,52 @@ func main() {
 	fmt.Printf("protocol tags: %v\n", protocols)
 
 	write := catalog.BuildWrite(cat, view, snapshot, nil)
+
+	// Nothing may go missing: every model the panel considers active has to
+	// appear exactly once in the configuration being written.
+	written := map[string]int{}
+	total := 0
+	for _, ch := range cpa.AllChannels {
+		for _, provider := range write.Channels[ch] {
+			for _, model := range provider.Models {
+				written[provider.BaseURL+"|"+model.Name]++
+				total++
+			}
+		}
+	}
+	duplicates := 0
+	for _, n := range written {
+		if n > 1 {
+			duplicates++
+		}
+	}
+	fmt.Printf("active=%d written=%d unique=%d duplicated=%d moved=%d created=%v\n",
+		view.Stats.Active, total, len(written), duplicates, write.Moved, write.Created)
+
+	missing := 0
+	for _, m := range view.Models {
+		if m.Excluded != "" || m.Disabled {
+			continue
+		}
+		found := false
+		for _, ch := range cpa.AllChannels {
+			for _, provider := range write.Channels[ch] {
+				for _, model := range provider.Models {
+					if model.Name == m.Upstream {
+						found = true
+					}
+				}
+			}
+		}
+		if !found {
+			missing++
+			if missing <= 5 {
+				fmt.Println("  MISSING", m.Site, "/", m.Upstream)
+			}
+		}
+	}
+	fmt.Println("models that would disappear:", missing)
+
 	identical := true
 	for _, ch := range cpa.AllChannels {
 		before, _ := json.Marshal(cpa.ChannelPayload(snapshot.Providers(ch)))

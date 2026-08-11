@@ -22,6 +22,8 @@ type saveResponse struct {
 	Kept     int          `json:"kept"`
 	Removed  int          `json:"removed"`
 	Restored int          `json:"restored"`
+	Moved    int          `json:"moved"`
+	Created  []string     `json:"created"`
 	Skipped  int          `json:"skipped"`
 	Snapshot int64        `json:"snapshot,omitempty"`
 }
@@ -101,6 +103,8 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 		Kept:     write.Kept,
 		Removed:  write.Removed,
 		Restored: write.Restored,
+		Moved:    write.Moved,
+		Created:  write.Created,
 		Skipped:  opResult.Skipped,
 	}
 

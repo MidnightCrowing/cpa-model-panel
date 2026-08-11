@@ -2,6 +2,8 @@ package catalog
 
 import (
 	"encoding/json"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/local/cpa-model-panel/internal/clean"
@@ -456,6 +458,115 @@ func TestProtocolMatchesTheCleanedName(t *testing.T) {
 		}
 		if model.Protocol != expected {
 			t.Errorf("%s (canonical %q) tagged %q, want %q", model.Upstream, model.Canonical, model.Protocol, expected)
+		}
+	}
+}
+
+// With routing on, each CPA list holds exactly the models whose protocol names
+// it — no more, no less. The fixture starts misfiled on purpose: the codex
+// entry carries a claude model, which is the shape the live configuration had.
+func TestRoutingProjectsEachListExactly(t *testing.T) {
+	snap := fixture()
+	cat := Reconcile(nil, snap)
+	settings := defaultSettings()
+	settings.RouteByProtocol = true
+
+	view := compute(t, cat, settings, RefSet{}, RefSet{})
+	write := BuildWrite(cat, view, snap, nil)
+
+	got := map[cpa.Channel][]string{}
+	for _, ch := range cpa.AllChannels {
+		for _, provider := range write.Channels[ch] {
+			for _, model := range provider.Models {
+				got[ch] = append(got[ch], model.Name)
+			}
+		}
+		sort.Strings(got[ch])
+	}
+
+	want := map[cpa.Channel][]string{
+		cpa.ChannelOpenAI: {"[free]glm-4.5", "deepseek-ai/DeepSeek-V3", "qwen-max"},
+		cpa.ChannelCodex:  {"openai/gpt-5.4"},
+		cpa.ChannelClaude: {"[free]claude-sonnet-5", "anthropic/claude-opus-4.5"},
+	}
+	for _, ch := range cpa.AllChannels {
+		if strings.Join(got[ch], ",") != strings.Join(want[ch], ",") {
+			t.Errorf("%s holds %v, want %v", ch, got[ch], want[ch])
+		}
+	}
+}
+
+// A model routed to a channel the site has no entry in must get one created
+// from the site's own credentials — dropping it is what the original
+// implementation did.
+func TestRoutingCreatesAMissingProviderInsteadOfDropping(t *testing.T) {
+	snap := fixture()
+	cat := Reconcile(nil, snap)
+	settings := defaultSettings()
+	settings.RouteByProtocol = true
+
+	// The "free" site has openai and claude entries but no codex one.
+	matcher, err := clean.NewProtocolMatcher(clean.DefaultProtocolConfig())
+	if err != nil {
+		t.Fatalf("matcher: %v", err)
+	}
+	rules, err := clean.NewRules(clean.RulesConfig{})
+	if err != nil {
+		t.Fatalf("rules: %v", err)
+	}
+	MergeDiscovered(cat, "示例站点 / free", []string{"gpt-9-turbo"}, matcher, rules)
+
+	view := compute(t, cat, settings, RefSet{}, RefSet{})
+	write := BuildWrite(cat, view, snap, nil)
+
+	found := false
+	for _, provider := range write.Channels[cpa.ChannelCodex] {
+		for _, model := range provider.Models {
+			if model.Name == "gpt-9-turbo" {
+				found = true
+				if provider.BaseURL != "https://ai.example.com/v1" {
+					t.Errorf("created provider base-url = %q", provider.BaseURL)
+				}
+				if len(provider.APIKeys()) == 0 || provider.APIKeys()[0] != "key-free" {
+					t.Errorf("created provider did not inherit the site key: %#v", provider.APIKeyEntries)
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatal("model routed to a channel the site lacks was dropped")
+	}
+	if len(write.Created) == 0 {
+		t.Error("provider creation was not reported")
+	}
+}
+
+// claude-api-key addresses the bare origin while the other two take /v1.
+func TestCreatedProviderUsesTheChannelsUrlShape(t *testing.T) {
+	cases := map[cpa.Channel]string{
+		cpa.ChannelOpenAI: "https://x.example.com/v1",
+		cpa.ChannelCodex:  "https://x.example.com/v1",
+		cpa.ChannelClaude: "https://x.example.com",
+	}
+	for ch, want := range cases {
+		if got := channelBaseURL("https://x.example.com/v1", ch); got != want {
+			t.Errorf("channelBaseURL(/v1, %s) = %q, want %q", ch, got, want)
+		}
+		if got := channelBaseURL("https://x.example.com", ch); got != want {
+			t.Errorf("channelBaseURL(bare, %s) = %q, want %q", ch, got, want)
+		}
+	}
+}
+
+// Routing off keeps the byte-for-byte guarantee.
+func TestRoutingOffStillReproducesCpaExactly(t *testing.T) {
+	snap := fixture()
+	cat := Reconcile(nil, snap)
+	view := compute(t, cat, defaultSettings(), RefSet{}, RefSet{})
+	write := BuildWrite(cat, view, snap, nil)
+	for _, ch := range cpa.AllChannels {
+		if write.Changed[ch] {
+			t.Errorf("channel %s changed with routing off", ch)
 		}
 	}
 }

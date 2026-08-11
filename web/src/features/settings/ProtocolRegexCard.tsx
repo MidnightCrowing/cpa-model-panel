@@ -25,8 +25,21 @@ export function ProtocolRegexCard({ settings, view, onChange, onSave, busy }: Pr
     <section className="card settings-card">
       <h2 className="card-title">协议标记正则</h2>
       <p className="card-subtitle">
-        给每个模型打一个协议标记，用于命名页和启停页的筛选。<strong>只影响展示</strong>：已有模型永远写回它原本所在的
-        CPA 列表，不会被搬来搬去。只有「刷新站点模型」发现一个全新模型时，才用这个标记决定它落到该站点的哪张表。
+        协议标记决定模型属于 CPA 的哪张表。开启下面的归位开关后，<strong>启停页显示什么，CPA 对应的表就是什么</strong>
+        ——不多写一个，也不少写一个：gpt 进 codex-api-key，claude 进 claude-api-key，其余进 openai-compatibility。
+      </p>
+
+      <label className="checkbox settings-toggle" title="关闭后模型一律留在它原本所在的表里，保存不会跨表搬运">
+        <input
+          type="checkbox"
+          checked={settings.route_by_protocol ?? true}
+          onChange={(event) => onChange({ ...settings, route_by_protocol: event.target.checked })}
+        />
+        <span>按协议归位（CPA 的三张表 = 启停页的投影）</span>
+      </label>
+      <p className="card-subtitle">
+        站点在目标表里还没有条目时会<strong>自动新建</strong>一条，沿用该站点的 base-url 与密钥
+        （claude 表用裸域名，另外两张用 <code>/v1</code>），不会因为「目标表没有这个站」就把模型丢掉。
       </p>
       <p className="card-subtitle">
         匹配的是<strong>清洗之后的名字</strong>（有重映射就用重映射名，否则用清洗后的原始名），所以厂商前缀、

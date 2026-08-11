@@ -28,6 +28,10 @@ type Settings struct {
 	Whitelist string                    `json:"whitelist"`
 	Version   clean.VersionFilterConfig `json:"version"`
 	Protocol  clean.ProtocolConfig      `json:"protocol"`
+	// RouteByProtocol makes CPA's three lists a projection of the panel: each
+	// model is written to the list its protocol names, instead of staying in
+	// whichever list it happens to sit in today.
+	RouteByProtocol bool `json:"route_by_protocol"`
 }
 
 // CleaningRules is the cleaning half of the settings.
@@ -70,6 +74,14 @@ type ModelView struct {
 	// next save would add it; true plus an exclusion means the next save would
 	// remove it.
 	Present bool `json:"present"`
+	// Writable is false when the model cannot be written at all because the
+	// site has no provider in any channel the model belongs to. Without this
+	// such an entry would sit in to_add forever and the save button would
+	// never go quiet.
+	Writable bool `json:"writable"`
+	// Target is the CPA list this model belongs in. With routing off it is
+	// simply where it already is.
+	Target string `json:"target"`
 }
 
 type SiteView struct {
@@ -92,6 +104,8 @@ type Stats struct {
 	// refresh, and models the rules exclude but CPA still has.
 	ToAdd    int `json:"to_add"`
 	ToRemove int `json:"to_remove"`
+	// ToMove counts models sitting in a CPA list their protocol does not name.
+	ToMove int `json:"to_move"`
 }
 
 type View struct {
@@ -181,6 +195,14 @@ func Compute(in Inputs) (View, error) {
 			Kept:      in.Keeps.Has(entry.Site, entry.Upstream),
 			Disabled:  in.Disabled.Has(entry.Site, entry.Upstream),
 			Present:   entry.Present,
+			Writable:  entry.Present || in.Catalog.canWrite(entry),
+		}
+		model.Target = string(ChannelForProtocol(model.Protocol))
+		if !in.Settings.RouteByProtocol {
+			model.Target = ""
+			if occ := entry.anyOccurrence(); occ != nil {
+				model.Target = string(occ.Channel)
+			}
 		}
 
 		switch {
@@ -205,9 +227,11 @@ func Compute(in Inputs) (View, error) {
 		if hidden := model.Excluded != "" || model.Disabled; hidden != !entry.Present {
 			if entry.Present {
 				view.Stats.ToRemove++
-			} else {
+			} else if model.Writable {
 				view.Stats.ToAdd++
 			}
+		} else if in.Settings.RouteByProtocol && entry.Present && !hidden && misplaced(entry, model.Target) {
+			view.Stats.ToMove++
 		}
 		if model.Excluded != "" {
 			view.Stats.Excluded++
@@ -239,6 +263,15 @@ func Compute(in Inputs) (View, error) {
 	}
 
 	return view, nil
+}
+
+// misplaced reports whether the model occupies anything other than exactly
+// the one list it belongs in.
+func misplaced(entry *Entry, target string) bool {
+	if len(entry.Occurrences) != 1 {
+		return true
+	}
+	return string(entry.Occurrences[0].Channel) != target
 }
 
 func sortEntries(entries []Entry) {

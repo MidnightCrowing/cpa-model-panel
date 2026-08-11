@@ -146,3 +146,8 @@ code {
   flex: 1 1 220px;
   min-width: 180px;
 }
+
+.settings-toggle {
+  justify-self: start;
+  min-height: var(--control-height);
+}

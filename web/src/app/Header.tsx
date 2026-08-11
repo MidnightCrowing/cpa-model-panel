@@ -66,7 +66,7 @@ export function Header({
         {outOfSync > 0 && (
           <span
             className="badge is-warn"
-            title={`与 CPA 的差异：待写入 ${view?.stats.to_add ?? 0} 个，待移除 ${view?.stats.to_remove ?? 0} 个。点「保存到 CPA」应用`}
+            title={`与 CPA 的差异：待写入 ${view?.stats.to_add ?? 0} 个，待移除 ${view?.stats.to_remove ?? 0} 个，待按协议归位 ${view?.stats.to_move ?? 0} 个。点「保存到 CPA」应用`}
           >
             待同步 {outOfSync} 项
           </span>

@@ -116,7 +116,10 @@ export function buildNamingRows({ models, draft, aggregation, siteName }: BuildI
         }
       }
       if (model.kept || draft.keeps[entryKey]) keptCount++
-      if (!model.present) pendingCount++
+      // Absent from CPA because it is switched off at its site is not the
+      // same as waiting to be written, and showing both as 待写入 made the
+      // badge look stuck forever.
+      if (!model.present && !model.disabled) pendingCount++
       if (model.disabled) disabledCount++
       if (
         draft.renames[entryKey] !== undefined ||

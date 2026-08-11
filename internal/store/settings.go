@@ -16,6 +16,7 @@ const (
 	keyWhitelist     = "model_whitelist_regex"
 	keyVersionFilter = "version_filter_config"
 	keyProtocolRegex = "protocol_regex"
+	keyRouteByProto  = "route_by_protocol"
 	keyLegacyDone    = "legacy_disabled_migrated"
 )
 
@@ -52,6 +53,9 @@ func (s *Store) Settings() (catalog.Settings, error) {
 		Suffixes: append([]string(nil), clean.DefaultSuffixes...),
 		Version:  clean.DefaultVersionFilterConfig(),
 		Protocol: clean.DefaultProtocolConfig(),
+		// CPA's three lists are a projection of the panel by default: each
+		// model belongs in the list its protocol names.
+		RouteByProtocol: true,
 	}
 
 	var prefixes []string
@@ -104,7 +108,18 @@ func (s *Store) Settings() (catalog.Settings, error) {
 		out.Protocol = protocol
 	}
 
+	var route bool
+	if found, err := s.getJSON(keyRouteByProto, &route); err != nil {
+		return out, err
+	} else if found {
+		out.RouteByProtocol = route
+	}
+
 	return out, nil
+}
+
+func (s *Store) SetRouteByProtocol(enabled bool) error {
+	return s.setJSON(keyRouteByProto, enabled)
 }
 
 func (s *Store) SetCleanRules(cfg clean.RulesConfig) error {

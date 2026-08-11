@@ -27,6 +27,10 @@ export type ModelView = EntryRef & {
   pending?: boolean
   /** Whether CPA currently holds this model. */
   present: boolean
+  /** False when the site has no provider the model could be written to. */
+  writable: boolean
+  /** The CPA list this model belongs in. */
+  target: Channel
 }
 
 export type SiteView = {
@@ -47,6 +51,8 @@ export type Stats = {
   /** What a save would change even with an empty draft. */
   to_add: number
   to_remove: number
+  /** Models sitting in a CPA list their protocol does not name. */
+  to_move: number
 }
 
 export type SeriesThreshold = {
@@ -80,6 +86,8 @@ export type Settings = {
   whitelist: string
   version: VersionFilterConfig
   protocol: ProtocolConfig
+  /** Write each model to the CPA list its protocol names. */
+  route_by_protocol: boolean
 }
 
 export type View = {
@@ -104,9 +112,12 @@ export type SaveResult = {
   ok: boolean
   view: View
   written: string[] | null
+  renamed: number
   kept: number
   removed: number
   restored: number
+  moved: number
+  created: string[] | null
   skipped: number
   snapshot?: number
 }

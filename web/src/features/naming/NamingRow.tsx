@@ -82,6 +82,11 @@ export const NamingRow = memo(function NamingRow({ row, saving, actions }: Props
                 </button>
               )}
               {row.pendingCount > 0 && <span className="chip chip-new">待写入</span>}
+              {row.disabledCount > 0 && (
+                <span className="chip" title="在站点启停页被关掉，不会写入 CPA">
+                  已停用 {row.disabledCount}
+                </span>
+              )}
               <button
                 type="button"
                 className="btn btn-danger btn-sm"

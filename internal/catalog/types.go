@@ -63,6 +63,17 @@ func (e *Entry) Alias() string {
 	return ""
 }
 
+// anyOccurrence returns a copy the write can take field values from when the
+// model is moving to a channel it is not in yet.
+func (e *Entry) anyOccurrence() *Occurrence {
+	for _, ch := range cpa.AllChannels {
+		if occ := e.occurrence(ch); occ != nil {
+			return occ
+		}
+	}
+	return nil
+}
+
 func (e *Entry) Channels() []string {
 	out := make([]string, 0, len(e.Occurrences))
 	for _, ch := range cpa.AllChannels {
@@ -116,6 +127,21 @@ func (c *Catalog) setSites(sites []Site) {
 	for i := range c.sites {
 		c.siteMap[c.sites[i].ID] = &c.sites[i]
 	}
+}
+
+// canWrite reports whether the entry has somewhere to go: its site must still
+// have a provider in one of the channels the model belongs to.
+func (c *Catalog) canWrite(entry *Entry) bool {
+	site := c.Site(entry.Site)
+	if site == nil {
+		return false
+	}
+	for _, occ := range entry.Occurrences {
+		if site.HasChannel(occ.Channel) {
+			return true
+		}
+	}
+	return false
 }
 
 // EntryRef addresses one entry from the UI.
