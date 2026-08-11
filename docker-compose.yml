@@ -20,6 +20,7 @@ services:
       LISTEN: ":5006"
       DATA_DIR: /data
       CPA_BASE_URL: ${CPA_BASE_URL:-http://host.docker.internal:5000}
+      KEEPER_URL: ${KEEPER_URL:-http://host.docker.internal:5002}
     volumes:
       - ${PANEL_DATA_DIR:-./data}:/data
     extra_hosts:

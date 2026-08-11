@@ -10,6 +10,7 @@ import (
 
 	"github.com/local/cpa-model-panel/internal/catalog"
 	"github.com/local/cpa-model-panel/internal/cpa"
+	"github.com/local/cpa-model-panel/internal/keeper"
 	"github.com/local/cpa-model-panel/internal/store"
 )
 
@@ -17,6 +18,7 @@ type Server struct {
 	AdminToken string
 	CPA        *cpa.Client
 	Store      *store.Store
+	Keeper     *keeper.Client
 	Retain     int
 
 	// mu serialises every read-modify-write cycle against CPA.
@@ -32,6 +34,9 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.Handle("/api/settings", s.auth(http.HandlerFunc(s.handleSettings)))
 	mux.Handle("/api/snapshots", s.auth(http.HandlerFunc(s.handleSnapshots)))
 	mux.Handle("/api/snapshots/", s.auth(http.HandlerFunc(s.handleSnapshotAction)))
+	mux.Handle("/api/stats", s.auth(http.HandlerFunc(s.handleStats)))
+	mux.Handle("/api/eggs", s.auth(http.HandlerFunc(s.handleEggs)))
+	mux.Handle("/api/sites/", s.auth(http.HandlerFunc(s.handleSiteAction)))
 }
 
 func (s *Server) auth(next http.Handler) http.Handler {
@@ -97,6 +102,8 @@ type base struct {
 	Exclusions  catalog.RefSet
 	Disabled    catalog.RefSet
 	Keeps       catalog.RefSet
+	TempSites   map[string]string
+	Health      map[string]catalog.SiteProbe
 }
 
 // state is a base plus the computed view.
@@ -140,6 +147,22 @@ func (s *Server) loadBase() (*base, error) {
 	if err != nil {
 		return nil, err
 	}
+	tempRows, err := s.Store.TempSites()
+	if err != nil {
+		return nil, err
+	}
+	temp := make(map[string]string, len(tempRows))
+	for id, row := range tempRows {
+		temp[id] = row.SourceURL
+	}
+	healthRows, err := s.Store.SiteHealth()
+	if err != nil {
+		return nil, err
+	}
+	health := make(map[string]catalog.SiteProbe, len(healthRows))
+	for id, row := range healthRows {
+		health[id] = catalog.SiteProbe{LastOKAt: row.LastOKAt, LastError: row.LastError, Failures: row.Failures}
+	}
 
 	return &base{
 		Snapshot:    snapshot,
@@ -149,6 +172,8 @@ func (s *Server) loadBase() (*base, error) {
 		Exclusions:  exclusions,
 		Disabled:    disabled,
 		Keeps:       keeps,
+		TempSites:   temp,
+		Health:      health,
 	}, nil
 }
 
@@ -160,6 +185,8 @@ func (s *Server) compute(b *base, settings catalog.Settings) (catalog.View, erro
 		Exclusions: b.Exclusions,
 		Disabled:   b.Disabled,
 		Keeps:      b.Keeps,
+		TempSites:  b.TempSites,
+		Health:     b.Health,
 	})
 	if err != nil {
 		return catalog.View{}, err

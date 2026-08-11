@@ -69,6 +69,8 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 		Exclusions: opResult.Exclusions,
 		Disabled:   opResult.Disabled,
 		Keeps:      opResult.Keeps,
+		TempSites:  st.TempSites,
+		Health:     st.Health,
 	})
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
@@ -76,6 +78,20 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	write := catalog.BuildWrite(st.Catalog, view, st.Snapshot, opResult.Priorities)
+
+	// A preview runs everything except the writes, so the diff shown before a
+	// big change is produced by the same code that will apply it.
+	if r.URL.Query().Get("dry") == "1" {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":        true,
+			"dry":       true,
+			"diff":      catalog.Diff(st.Snapshot, write),
+			"conflicts": view.Conflicts,
+			"moved":     write.Moved,
+			"created":   write.Created,
+		})
+		return
+	}
 
 	// Persist the edited catalog before touching CPA.
 	//

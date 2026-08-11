@@ -42,6 +42,67 @@ export type SiteView = {
   priority: number
   channels: Channel[]
   active: number
+  base_url: string
+  /** False for entries CPA holds with an empty api-key. */
+  has_key: boolean
+  /** A short-lived endpoint added from a shared link. */
+  temp?: boolean
+  source_url?: string
+  last_ok_at?: string
+  last_error?: string
+  failures?: number
+}
+
+/** Two upstream models at one site that would be written under one name. */
+export type Conflict = {
+  site: string
+  name: string
+  channel: Channel
+  upstreams: string[]
+}
+
+export type ChannelDiff = {
+  channel: Channel
+  added: string[]
+  removed: string[]
+  renamed: string[]
+  new_providers: string[]
+}
+
+export type SavePreview = {
+  ok: boolean
+  dry: true
+  diff: ChannelDiff[]
+  conflicts: Conflict[]
+  moved: number
+  created: string[] | null
+}
+
+export type StatCell = {
+  site: string
+  model: string
+  ok: number
+  failed: number
+  latency_ms: number
+  last_at: string
+}
+
+export type StatsResult = {
+  configured: boolean
+  reason?: string
+  range?: string
+  updated_at?: string
+  events?: number
+  cells?: StatCell[]
+}
+
+export type EggResult = {
+  ok: boolean
+  site: string
+  models: string[]
+  key_used: string
+  decoded: boolean
+  view: View
 }
 
 export type Stats = {
@@ -100,6 +161,7 @@ export type View = {
   models: ModelView[]
   stats: Stats
   settings: Settings
+  conflicts?: Conflict[]
 }
 
 export type Op =

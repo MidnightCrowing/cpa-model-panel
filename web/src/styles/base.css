@@ -713,3 +713,68 @@ button {
   margin: 0;
   font-size: 15px;
 }
+
+/* ── Inline notice ──────────────────────────────────────── */
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--warn-badge-border);
+  border-radius: var(--radius-md);
+  background: var(--warn-badge-bg);
+  color: var(--warn-badge-text);
+}
+
+/* ── Save preview ───────────────────────────────────────── */
+
+.preview-modal,
+.egg-modal {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.preview-conflicts h4 {
+  margin: 0 0 4px;
+  color: var(--warn-badge-text);
+  font-size: 13px;
+}
+
+.preview-channel summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.preview-list {
+  margin-top: 6px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.preview-list .is-add {
+  color: var(--success-badge-text);
+}
+
+.preview-list .is-remove {
+  color: var(--failure-badge-text);
+}
+
+.preview-list .is-rename {
+  color: var(--warn-badge-text);
+}
+
+.preview-list .is-new {
+  color: var(--info-badge-text);
+  font-weight: 700;
+}

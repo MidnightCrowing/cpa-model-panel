@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { clearToken, getToken } from '../api/client'
+import { SavePreview } from '../components/SavePreview'
 import { Toasts } from '../components/Toasts'
 import { MatrixPage } from '../features/matrix/MatrixPage'
 import { NamingPage } from '../features/naming/NamingPage'
@@ -50,7 +51,7 @@ function Shell() {
         saving={saving}
         refreshing={refreshing}
         onRefresh={() => void catalog.refresh()}
-        onSave={() => void catalog.save()}
+        onSave={() => void catalog.requestPreview()}
         onDiscard={catalog.discard}
         onReload={() => void catalog.load()}
         onLogout={() => {
@@ -82,9 +83,21 @@ function Shell() {
         ) : tab === 'naming' ? (
           <NamingPage view={view!} draft={draft} dispatch={dispatch} saving={saving} />
         ) : (
-          <MatrixPage view={view!} draft={draft} dispatch={dispatch} />
+          <MatrixPage view={view!} draft={draft} dispatch={dispatch} onView={catalog.setView} />
         )}
       </main>
+
+      {catalog.preview && (
+        <SavePreview
+          diff={catalog.preview.diff}
+          conflicts={catalog.preview.conflicts}
+          created={catalog.preview.created}
+          moved={catalog.preview.moved}
+          busy={saving}
+          onConfirm={() => void catalog.save()}
+          onCancel={catalog.cancelPreview}
+        />
+      )}
     </div>
   )
 }

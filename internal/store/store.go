@@ -85,6 +85,22 @@ CREATE TABLE IF NOT EXISTS model_keeps (
   PRIMARY KEY (site, upstream)
 );
 
+-- Short-lived endpoints ("鸡蛋") and where they were shared.
+CREATE TABLE IF NOT EXISTS temp_sites (
+  site TEXT PRIMARY KEY,
+  source_url TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+
+-- Outcome of the last model-list probe per site.
+CREATE TABLE IF NOT EXISTS site_health (
+  site TEXT PRIMARY KEY,
+  last_ok_at TEXT NOT NULL DEFAULT '',
+  last_error TEXT NOT NULL DEFAULT '',
+  last_try_at TEXT NOT NULL DEFAULT '',
+  failures INTEGER NOT NULL DEFAULT 0
+);
+
 -- Legacy table from the pre-catalog schema; kept only so MigrateLegacy can
 -- read it once.
 CREATE TABLE IF NOT EXISTS disabled_models (

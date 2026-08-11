@@ -1,17 +1,18 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import type { EntryRef, Protocol, SiteView } from '../../api/types'
 import { VirtualList } from '../../components/VirtualList'
 import { refKey } from '../../lib/keys'
+import type { StatsIndex } from '../../state/useStats'
+import { SiteMenu, type SiteMenuActions } from './SiteMenu'
 import type { MatrixRow } from './visibility'
 
 export const ROW_HEIGHT = 44
 export const COLUMN_WIDTH = 120
 export const NAME_WIDTH = 300
 
-export type MatrixActions = {
-  onToggle: (targets: EntryRef[], disabled: boolean) => void
+export type MatrixActions = SiteMenuActions & {
+  onToggle: (targets: EntryRef[], currentlyEnabled: boolean) => void
   onSetRow: (row: MatrixRow, disabled: boolean) => void
-  onEditPriority: (site: SiteView) => void
 }
 
 type GridProps = {
@@ -19,11 +20,24 @@ type GridProps = {
   sites: SiteView[]
   disabledDraft: Record<string, boolean>
   baseDisabled: Set<string>
+  priorityDraft: Record<string, number>
+  stats: StatsIndex
+  busySite: string | null
   actions: MatrixActions
 }
 
-export function MatrixGrid({ rows, sites, disabledDraft, baseDisabled, actions }: GridProps) {
+export function MatrixGrid({
+  rows,
+  sites,
+  disabledDraft,
+  baseDisabled,
+  priorityDraft,
+  stats,
+  busySite,
+  actions,
+}: GridProps) {
   const width = NAME_WIDTH + sites.length * COLUMN_WIDTH
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
 
   return (
     <VirtualList
@@ -36,16 +50,30 @@ export function MatrixGrid({ rows, sites, disabledDraft, baseDisabled, actions }
         <div className="matrix-row matrix-head" style={{ width }}>
           <div className="cell cell-name">模型（映射后）</div>
           {sites.map((site) => (
-            <div className="cell cell-site" key={site.id} title={siteTitle(site)}>
-              <span className="site-name">{site.name}</span>
+            <div className={`cell cell-site ${site.temp ? 'is-temp' : ''}`} key={site.id}>
               <button
                 type="button"
-                className="priority-chip"
-                title="修改站点优先级：数值越大越靠前"
-                onClick={() => actions.onEditPriority(site)}
+                className="site-head"
+                title={siteTitle(site)}
+                onClick={() => setOpenMenu(openMenu === site.id ? null : site.id)}
               >
-                {site.priority}
+                <span className="site-name">{site.name}</span>
+                <span className="site-head-line">
+                  <span className={`priority-chip ${priorityDraft[site.id] !== undefined ? 'dirty' : ''}`}>
+                    {priorityDraft[site.id] ?? site.priority}
+                  </span>
+                  <SiteHealth site={site} />
+                </span>
               </button>
+              {openMenu === site.id && (
+                <SiteMenu
+                  site={site}
+                  priority={priorityDraft[site.id] ?? site.priority}
+                  busy={busySite === site.id}
+                  actions={actions}
+                  onClose={() => setOpenMenu(null)}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -56,6 +84,7 @@ export function MatrixGrid({ rows, sites, disabledDraft, baseDisabled, actions }
           sites={sites}
           disabledDraft={disabledDraft}
           baseDisabled={baseDisabled}
+          stats={stats}
           actions={actions}
           width={width}
         />
@@ -64,16 +93,51 @@ export function MatrixGrid({ rows, sites, disabledDraft, baseDisabled, actions }
   )
 }
 
+/** A dot for the last probe: green recently ok, red failing, grey unknown. */
+function SiteHealth({ site }: { site: SiteView }) {
+  if (!site.has_key) return <span className="health-dot is-bad" title="CPA 里没有 api-key" />
+  if (site.failures && site.failures > 0) {
+    return <span className="health-dot is-bad" title={`连续失败 ${site.failures} 次：${site.last_error ?? ''}`} />
+  }
+  if (site.last_ok_at) return <span className="health-dot is-ok" title={`最后成功 ${site.last_ok_at}`} />
+  return <span className="health-dot" title="尚未探测" />
+}
+
+const CHANNEL_LABEL: Record<string, string> = {
+  openai: 'openai-compatibility',
+  codex: 'codex-api-key',
+  claude: 'claude-api-key',
+}
+
+function siteTitle(site: SiteView): string {
+  const lines = [`${site.name}（优先级 ${site.priority}）`, `配置于：${site.channels.map((c) => CHANNEL_LABEL[c] ?? c).join('、')}`]
+  if (!site.channels.includes('openai')) {
+    lines.push('该站点在 CPA 里没有 openai-compatibility 条目，只能按 base-url 找')
+  }
+  if (!site.has_key) lines.push('CPA 配置里 api-key 为空')
+  lines.push('点击展开站点操作')
+  return lines.join('\n')
+}
+
 type RowProps = {
   row: MatrixRow
   sites: SiteView[]
   disabledDraft: Record<string, boolean>
   baseDisabled: Set<string>
+  stats: StatsIndex
   actions: MatrixActions
   width: number
 }
 
-const MatrixRowView = memo(function MatrixRowView({ row, sites, disabledDraft, baseDisabled, actions, width }: RowProps) {
+const MatrixRowView = memo(function MatrixRowView({
+  row,
+  sites,
+  disabledDraft,
+  baseDisabled,
+  stats,
+  actions,
+  width,
+}: RowProps) {
   let on = 0
   let off = 0
   for (const site of sites) {
@@ -107,7 +171,7 @@ const MatrixRowView = memo(function MatrixRowView({ row, sites, disabledDraft, b
         const refs = row.cells.get(site.id)
         if (!refs) {
           return (
-            <div className="cell cell-site is-absent" key={site.id}>
+            <div className={`cell cell-site is-absent ${site.temp ? 'is-temp' : ''}`} key={site.id}>
               ·
             </div>
           )
@@ -115,13 +179,14 @@ const MatrixRowView = memo(function MatrixRowView({ row, sites, disabledDraft, b
         const enabled = isEnabled(refs, disabledDraft, baseDisabled)
         const dirty = refs.some((ref) => disabledDraft[refKey(ref.site, ref.upstream)] !== undefined)
         return (
-          <div className="cell cell-site" key={site.id}>
+          <div className={`cell cell-site ${site.temp ? 'is-temp' : ''}`} key={site.id}>
             <button
               type="button"
               className={`toggle ${enabled ? 'is-on' : ''} ${dirty ? 'is-dirty' : ''}`}
               title={refs.map((ref) => ref.upstream).join('\n')}
               onClick={() => actions.onToggle(refs, enabled)}
             />
+            <CellStats refs={refs} stats={stats} />
           </div>
         )
       })}
@@ -129,22 +194,37 @@ const MatrixRowView = memo(function MatrixRowView({ row, sites, disabledDraft, b
   )
 })
 
-const CHANNEL_LIST: Record<string, string> = {
-  openai: 'openai-compatibility',
-  codex: 'codex-api-key',
-  claude: 'claude-api-key',
-}
+/**
+ * Request outcomes for the models behind this cell.
+ *
+ * A cell often stands for several upstream models, and they do not all behave
+ * the same, so the summary is the total and the tooltip breaks it down per
+ * model.
+ */
+function CellStats({ refs, stats }: { refs: EntryRef[]; stats: StatsIndex }) {
+  if (!stats.configured) return null
 
-/** Which CPA lists this site is configured in. codex-api-key and
- *  claude-api-key entries carry no name at all, so a site that lives only
- *  there is impossible to find in CPA by name — worth saying out loud. */
-function siteTitle(site: SiteView): string {
-  const lists = site.channels.map((channel) => CHANNEL_LIST[channel] ?? channel).join('、')
-  const lines = [`${site.name}（优先级 ${site.priority}）`, `配置于：${lists}`]
-  if (!site.channels.includes('openai')) {
-    lines.push('该站点在 CPA 里没有 openai-compatibility 条目，只能按 base-url 找')
+  let ok = 0
+  let failed = 0
+  const lines: string[] = []
+  for (const ref of refs) {
+    const cell = stats.byModel.get(refKey(ref.site, ref.upstream))
+    if (!cell) continue
+    ok += cell.ok
+    failed += cell.failed
+    lines.push(`${ref.upstream}：成功 ${cell.ok} / 失败 ${cell.failed}${cell.latency_ms ? ` · ${cell.latency_ms}ms` : ''}`)
   }
-  return lines.join('\n')
+  if (ok === 0 && failed === 0) return null
+
+  const tone = failed === 0 ? 'is-ok' : ok === 0 ? 'is-bad' : 'is-mixed'
+  return (
+    <span className={`cell-stats ${tone}`} title={lines.join('\n')}>
+      <span className="cell-stats-ok">{ok}</span>
+      <span className="cell-stats-sep">/</span>
+      <span className="cell-stats-bad">{failed}</span>
+      {refs.length > 1 && <span className="cell-stats-more">▾</span>}
+    </span>
+  )
 }
 
 const PROTOCOL_LABEL: Record<Protocol, string> = {
@@ -159,7 +239,6 @@ const PROTOCOL_TARGET: Record<Protocol, string> = {
   claude: 'claude-api-key',
 }
 
-/** Which CPA list this row is written to. */
 function ProtocolMark({ protocols }: { protocols: Protocol[] }) {
   if (protocols.length === 1) {
     const protocol = protocols[0]

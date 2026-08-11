@@ -196,3 +196,164 @@
   border-color: var(--warn-badge-border);
   background: var(--warn-badge-bg);
 }
+
+/* ── Site column header ─────────────────────────────────── */
+
+.site-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.site-head:hover {
+  background: var(--bg-hover);
+}
+
+.site-head-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.health-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-quaternary, #6f6962);
+}
+
+.health-dot.is-ok {
+  background: var(--success-color);
+}
+
+.health-dot.is-bad {
+  background: var(--error-color);
+}
+
+/* Temporary endpoints get their own colour so they are never mistaken for a
+   site you can rely on. */
+.cell-site.is-temp {
+  background: rgba(224, 170, 20, 0.07);
+}
+
+.matrix-head .cell-site.is-temp {
+  background: rgba(224, 170, 20, 0.16);
+}
+
+.chip-egg {
+  background: var(--warn-badge-bg);
+  border-color: var(--warn-badge-border);
+  color: var(--warn-badge-text);
+}
+
+.site-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: 280px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--floating-border);
+  border-radius: 12px;
+  background: var(--floating-surface);
+  box-shadow: var(--floating-shadow);
+  text-align: left;
+  white-space: normal;
+}
+
+.matrix-head .cell-site {
+  position: relative;
+  overflow: visible;
+}
+
+.site-menu-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.site-menu-name {
+  overflow-wrap: anywhere;
+}
+
+.site-menu-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.site-menu-warn {
+  color: var(--failure-badge-text);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.site-menu-priority {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+}
+
+.site-menu-priority .input {
+  width: 74px;
+  text-align: center;
+}
+
+.site-menu-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.site-menu-actions .btn {
+  width: 100%;
+}
+
+/* ── Per-cell request outcomes ──────────────────────────── */
+
+.cell-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 9px;
+  line-height: 1;
+  cursor: help;
+}
+
+.cell-stats-ok {
+  color: var(--success-badge-text);
+}
+
+.cell-stats-bad {
+  color: var(--failure-badge-text);
+}
+
+.cell-stats-sep {
+  color: var(--text-quaternary, #6f6962);
+}
+
+.cell-stats.is-ok .cell-stats-bad {
+  opacity: 0.45;
+}
+
+.cell-stats.is-bad .cell-stats-ok {
+  opacity: 0.45;
+}
+
+.cell-stats-more {
+  color: var(--text-tertiary);
+}

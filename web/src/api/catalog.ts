@@ -1,5 +1,15 @@
 import { authHeaders, request } from './client'
-import type { Op, RefreshResult, SaveResult, Settings, SnapshotMeta, View } from './types'
+import type {
+  EggResult,
+  Op,
+  RefreshResult,
+  SavePreview,
+  SaveResult,
+  Settings,
+  SnapshotMeta,
+  StatsResult,
+  View,
+} from './types'
 
 export function login(token: string) {
   return request<{ ok: boolean; token: string }>('/api/login', {
@@ -31,6 +41,35 @@ export function putSettings(settings: Settings) {
     method: 'PUT',
     body: JSON.stringify(settings),
   })
+}
+
+/** Same pipeline as a save, but nothing is written. */
+export function previewOps(fingerprint: string, ops: Op[]) {
+  return request<SavePreview>('/api/save?dry=1', {
+    method: 'POST',
+    body: JSON.stringify({ fingerprint, ops }),
+  })
+}
+
+export function fetchStats(range = '24h') {
+  return request<StatsResult>(`/api/stats?range=${range}`)
+}
+
+export function refreshSite(site: string) {
+  return request<{ ok: boolean; site: string; found: number; added: number; view: View }>(
+    `/api/sites/${encodeURIComponent(site)}/refresh`,
+    { method: 'POST' },
+  )
+}
+
+export function deleteSite(site: string) {
+  return request<{ ok: boolean; removed: string[]; view: View }>(`/api/sites/${encodeURIComponent(site)}`, {
+    method: 'DELETE',
+  })
+}
+
+export function addEgg(payload: { url: string; key: string; name?: string; source_url?: string; priority?: number }) {
+  return request<EggResult>('/api/eggs', { method: 'POST', body: JSON.stringify(payload) })
 }
 
 export function fetchSnapshots() {

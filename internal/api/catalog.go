@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -107,11 +108,17 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			names, err := s.CPA.DiscoverModels(cpa.DiscoverTarget{
-				BaseURL: site.BaseURL,
-				Headers: site.Headers,
-				APIKey:  site.APIKey,
-			})
+			var names []string
+			var err error
+			if strings.TrimSpace(site.APIKey) == "" {
+				err = errNoKey{}
+			} else {
+				names, err = s.CPA.DiscoverModels(cpa.DiscoverTarget{
+					BaseURL: site.BaseURL,
+					Headers: site.Headers,
+					APIKey:  site.APIKey,
+				})
+			}
 			results[i] = discovery{site: site, names: names, err: err}
 
 			progressMu.Lock()
@@ -140,6 +147,7 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	added := 0
 	refreshed := 0
 	for _, result := range results {
+		_ = s.Store.RecordProbe(result.site.ID, result.err)
 		if result.err != nil {
 			failures = append(failures, refreshFailure{
 				Site:  result.site.ID,
@@ -160,6 +168,8 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		Exclusions: st.Exclusions,
 		Disabled:   st.Disabled,
 		Keeps:      st.Keeps,
+		TempSites:  st.TempSites,
+		Health:     st.Health,
 	})
 	if err != nil {
 		send(map[string]any{"type": "done", "error": err.Error()})

@@ -14,6 +14,10 @@ type Config struct {
 	CPAManagementSecret string
 	DataDir             string
 	SnapshotRetain      int
+	// Keeper supplies per-request success/failure statistics. Optional: the
+	// panel works without it, just without the health column.
+	KeeperURL      string
+	KeeperPassword string
 }
 
 func Load() (Config, error) {
@@ -24,6 +28,8 @@ func Load() (Config, error) {
 		CPAManagementSecret: strings.TrimSpace(os.Getenv("CPA_MANAGEMENT_SECRET")),
 		DataDir:             envOr("DATA_DIR", "./data"),
 		SnapshotRetain:      envInt("SNAPSHOT_RETAIN", 20),
+		KeeperURL:           strings.TrimRight(envOr("KEEPER_URL", ""), "/"),
+		KeeperPassword:      strings.TrimSpace(os.Getenv("KEEPER_PASSWORD")),
 	}
 	if cfg.AdminToken == "" {
 		return Config{}, fmt.Errorf("ADMIN_TOKEN is required")

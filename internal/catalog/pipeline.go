@@ -52,6 +52,17 @@ type Inputs struct {
 	// Keeps are per-model overrides that survive the whitelist and the version
 	// filter — the escape hatch for the one model a rule gets wrong.
 	Keeps RefSet
+	// TempSites maps a site id to where its link was shared.
+	TempSites map[string]string
+	// Health is the outcome of each site's last model-list probe.
+	Health map[string]SiteProbe
+}
+
+// SiteProbe mirrors the stored health record without importing the store.
+type SiteProbe struct {
+	LastOKAt  string
+	LastError string
+	Failures  int
 }
 
 // ModelView is one row as the UI sees it.
@@ -90,6 +101,17 @@ type SiteView struct {
 	Priority int      `json:"priority"`
 	Channels []string `json:"channels"`
 	Active   int      `json:"active"`
+	BaseURL  string   `json:"base_url"`
+	// HasKey is false for entries CPA holds with api-key: "". Its own UI hides
+	// those, so they are invisible there while still failing every probe.
+	HasKey bool `json:"has_key"`
+	// Temp marks a short-lived endpoint added from a shared link.
+	Temp      bool   `json:"temp,omitempty"`
+	SourceURL string `json:"source_url,omitempty"`
+	// Health of the last model-list probe.
+	LastOKAt  string `json:"last_ok_at,omitempty"`
+	LastError string `json:"last_error,omitempty"`
+	Failures  int    `json:"failures,omitempty"`
 }
 
 type Stats struct {
@@ -108,6 +130,16 @@ type Stats struct {
 	ToMove int `json:"to_move"`
 }
 
+// Conflict is two different upstream models at one site that would be written
+// under the same name into the same CPA list. CPA keeps both, and which one
+// answers is anybody's guess, so it is worth showing before a save.
+type Conflict struct {
+	Site      string   `json:"site"`
+	Name      string   `json:"name"`
+	Channel   string   `json:"channel"`
+	Upstreams []string `json:"upstreams"`
+}
+
 type View struct {
 	Fingerprint string      `json:"fingerprint"`
 	FetchedAt   string      `json:"fetched_at"`
@@ -115,6 +147,7 @@ type View struct {
 	Models      []ModelView `json:"models"`
 	Stats       Stats       `json:"stats"`
 	Settings    Settings    `json:"settings"`
+	Conflicts   []Conflict  `json:"conflicts,omitempty"`
 }
 
 // Compute runs the whole pipeline:
@@ -246,6 +279,8 @@ func Compute(in Inputs) (View, error) {
 		view.Models = append(view.Models, model)
 	}
 
+	view.Conflicts = findConflicts(view.Models)
+
 	for _, site := range in.Catalog.Sites() {
 		channels := make([]string, 0, len(site.Providers))
 		for _, ch := range cpa.AllChannels {
@@ -253,13 +288,25 @@ func Compute(in Inputs) (View, error) {
 				channels = append(channels, string(ch))
 			}
 		}
-		view.Sites = append(view.Sites, SiteView{
+		entry := SiteView{
 			ID:       site.ID,
 			Name:     site.Name,
 			Priority: site.Priority,
 			Channels: channels,
 			Active:   activeBySite[site.ID],
-		})
+			BaseURL:  site.BaseURL,
+			HasKey:   strings.TrimSpace(site.APIKey) != "",
+		}
+		if temp, ok := in.TempSites[site.ID]; ok {
+			entry.Temp = true
+			entry.SourceURL = temp
+		}
+		if health, ok := in.Health[site.ID]; ok {
+			entry.LastOKAt = health.LastOKAt
+			entry.LastError = health.LastError
+			entry.Failures = health.Failures
+		}
+		view.Sites = append(view.Sites, entry)
 	}
 
 	return view, nil
@@ -272,6 +319,40 @@ func misplaced(entry *Entry, target string) bool {
 		return true
 	}
 	return string(entry.Occurrences[0].Channel) != target
+}
+
+// findConflicts groups the models that will be written by where they land and
+// what they will be called there.
+func findConflicts(models []ModelView) []Conflict {
+	type key struct{ site, channel, name string }
+	groups := map[key][]string{}
+	for _, m := range models {
+		if m.Excluded != "" || m.Disabled {
+			continue
+		}
+		name := m.Alias
+		if name == "" {
+			name = m.Upstream
+		}
+		k := key{site: m.Site, channel: m.Target, name: name}
+		groups[k] = append(groups[k], m.Upstream)
+	}
+
+	out := make([]Conflict, 0)
+	for k, upstreams := range groups {
+		if len(upstreams) < 2 {
+			continue
+		}
+		sort.Strings(upstreams)
+		out = append(out, Conflict{Site: k.site, Name: k.name, Channel: k.channel, Upstreams: upstreams})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Site != out[j].Site {
+			return out[i].Site < out[j].Site
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
 func sortEntries(entries []Entry) {

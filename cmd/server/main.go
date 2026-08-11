@@ -11,6 +11,7 @@ import (
 	"github.com/local/cpa-model-panel/internal/api"
 	"github.com/local/cpa-model-panel/internal/config"
 	"github.com/local/cpa-model-panel/internal/cpa"
+	"github.com/local/cpa-model-panel/internal/keeper"
 	"github.com/local/cpa-model-panel/internal/store"
 	"github.com/local/cpa-model-panel/web"
 )
@@ -30,6 +31,7 @@ func main() {
 		AdminToken: cfg.AdminToken,
 		CPA:        cpa.NewClient(cfg.CPABaseURL, cfg.CPAManagementSecret),
 		Store:      st,
+		Keeper:     keeper.NewClient(cfg.KeeperURL, cfg.KeeperPassword),
 		Retain:     cfg.SnapshotRetain,
 	}
 

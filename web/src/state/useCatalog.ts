@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchView, refreshCatalog, saveOps } from '../api/catalog'
+import { fetchView, previewOps, refreshCatalog, saveOps } from '../api/catalog'
 import { ApiError, clearToken } from '../api/client'
-import type { View } from '../api/types'
+import type { SavePreview, View } from '../api/types'
 import { baselineOf, buildOps, countChanges, emptyDraft, useDraft } from './useDraft'
 import { useToasts } from './useToasts'
 
@@ -14,6 +14,7 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
   const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState<RefreshState>(null)
   const [error, setError] = useState<string | null>(null)
+  const [preview, setPreview] = useState<SavePreview | null>(null)
   const [draft, dispatch] = useDraft()
 
   const fail = useCallback(
@@ -85,6 +86,27 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
   const outOfSync = (view?.stats.to_add ?? 0) + (view?.stats.to_remove ?? 0) + (view?.stats.to_move ?? 0)
   const savable = dirty > 0 || outOfSync > 0
 
+  // Saving is two steps: ask the server what it would do, show it, then let
+  // the user commit. A routing change can move hundreds of entries.
+  const requestPreview = useCallback(async () => {
+    if (!view) return
+    const ops = buildOps(draft, baseline)
+    if (ops.length === 0 && outOfSync === 0) {
+      push('info', '没有需要保存的变更')
+      return
+    }
+    setSaving(true)
+    try {
+      setPreview(await previewOps(view.fingerprint, ops))
+    } catch (error) {
+      fail(error)
+    } finally {
+      setSaving(false)
+    }
+  }, [baseline, draft, fail, outOfSync, push, view])
+
+  const cancelPreview = useCallback(() => setPreview(null), [])
+
   const save = useCallback(async () => {
     if (!view) return
     const ops = buildOps(draft, baseline)
@@ -119,6 +141,7 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
       }
     } finally {
       setSaving(false)
+      setPreview(null)
     }
   }, [baseline, dispatch, draft, fail, outOfSync, push, view])
 
@@ -161,6 +184,9 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
     savable,
     load,
     save,
+    preview,
+    requestPreview,
+    cancelPreview,
     refresh,
     discard,
     emptyDraft,

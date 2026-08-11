@@ -121,6 +121,8 @@ export function NamingPage({ view, draft, dispatch, saving }: Props) {
     for (const row of suggestable) dispatch({ kind: 'rename', targets: row.targets, to: row.suggested })
   }, [dispatch, suggestable])
 
+  const conflicts = view.conflicts ?? []
+
   return (
     <>
       <div className="toolbar">
@@ -159,6 +161,24 @@ export function NamingPage({ view, draft, dispatch, saving }: Props) {
           {rows.length} 行 · {filtered.length} 条站点模型
         </span>
       </div>
+
+      {conflicts.length > 0 && (
+        <div className="notice">
+          <span title={conflicts.map((c) => `${c.site} · ${c.name} ← ${c.upstreams.join(' , ')}`).join('\n')}>
+            ⚠ {conflicts.length} 处命名冲突：同一站点里多个原始模型会被写成同一个名字，CPA 会两条都留着
+          </span>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              setRawQuery(conflicts[0].name)
+              setAggregation('site')
+            }}
+          >
+            定位第一处
+          </button>
+        </div>
+      )}
 
       <VirtualList
         className="card naming-list"
