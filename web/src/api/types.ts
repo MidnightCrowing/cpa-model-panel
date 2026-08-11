@@ -11,6 +11,9 @@ export type EntryRef = {
 export type ModelView = EntryRef & {
   /** Current remapped name in CPA; empty means the upstream name is used. */
   alias: string
+  /** The name after cleaning: the remap when set, else the cleaned upstream
+   *  name. Protocol and vendor classification both run on this. */
+  canonical: string
   /** What the prefix/suffix rules would name it. */
   suggested: string
   protocol: Protocol

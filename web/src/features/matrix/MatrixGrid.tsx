@@ -36,7 +36,7 @@ export function MatrixGrid({ rows, sites, disabledDraft, baseDisabled, actions }
         <div className="matrix-row matrix-head" style={{ width }}>
           <div className="cell cell-name">模型（映射后）</div>
           {sites.map((site) => (
-            <div className="cell cell-site" key={site.id} title={`${site.name}（优先级 ${site.priority}）`}>
+            <div className="cell cell-site" key={site.id} title={siteTitle(site)}>
               <span className="site-name">{site.name}</span>
               <button
                 type="button"
@@ -128,6 +128,24 @@ const MatrixRowView = memo(function MatrixRowView({ row, sites, disabledDraft, b
     </div>
   )
 })
+
+const CHANNEL_LIST: Record<string, string> = {
+  openai: 'openai-compatibility',
+  codex: 'codex-api-key',
+  claude: 'claude-api-key',
+}
+
+/** Which CPA lists this site is configured in. codex-api-key and
+ *  claude-api-key entries carry no name at all, so a site that lives only
+ *  there is impossible to find in CPA by name — worth saying out loud. */
+function siteTitle(site: SiteView): string {
+  const lists = site.channels.map((channel) => CHANNEL_LIST[channel] ?? channel).join('、')
+  const lines = [`${site.name}（优先级 ${site.priority}）`, `配置于：${lists}`]
+  if (!site.channels.includes('openai')) {
+    lines.push('该站点在 CPA 里没有 openai-compatibility 条目，只能按 base-url 找')
+  }
+  return lines.join('\n')
+}
 
 const PROTOCOL_LABEL: Record<Protocol, string> = {
   openai: 'OA',

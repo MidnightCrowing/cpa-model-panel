@@ -27,13 +27,16 @@ export function MatrixPage({ view, draft, dispatch }: Props) {
   const [hideEmptyRows, setHideEmptyRows] = usePersistentState('panel.matrix.hideRows', true)
   const [hideEmptyColumns, setHideEmptyColumns] = usePersistentState('panel.matrix.hideCols', true)
 
+  // Classify on the cleaned name: "glm-5.2-anthropic" and "grok-4.5-claude"
+  // name a protocol shape, not a vendor, and matching the raw name filed them
+  // under Anthropic.
   const vendorOfModel = useMemo(() => {
     const cache = new Map<string, string>()
     return (model: ModelView) => {
-      let vendor = cache.get(model.upstream)
+      let vendor = cache.get(model.canonical)
       if (vendor === undefined) {
-        vendor = vendorOf(model.upstream, model.alias)
-        cache.set(model.upstream, vendor)
+        vendor = vendorOf(model.canonical, model.upstream)
+        cache.set(model.canonical, vendor)
       }
       return vendor
     }

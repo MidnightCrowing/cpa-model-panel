@@ -48,13 +48,16 @@ export function NamingPage({ view, draft, dispatch, saving }: Props) {
   const siteNames = useMemo(() => new Map(view.sites.map((site) => [site.id, site.name])), [view.sites])
   const siteName = useCallback((id: string) => siteNames.get(id) ?? id, [siteNames])
 
+  // Classify on the cleaned name: "glm-5.2-anthropic" and "grok-4.5-claude"
+  // name a protocol shape, not a vendor, and matching the raw name filed them
+  // under Anthropic.
   const vendorOfModel = useMemo(() => {
     const cache = new Map<string, string>()
     return (model: ModelView) => {
-      let vendor = cache.get(model.upstream)
+      let vendor = cache.get(model.canonical)
       if (vendor === undefined) {
-        vendor = vendorOf(model.upstream, model.alias)
-        cache.set(model.upstream, vendor)
+        vendor = vendorOf(model.canonical, model.upstream)
+        cache.set(model.canonical, vendor)
       }
       return vendor
     }
