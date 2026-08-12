@@ -1,0 +1,43 @@
+/* ── Cell stats tooltip ─────────────────────────────────── */
+
+.cell-stats-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0;
+  min-width: 200px;
+}
+
+.cell-stats-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.cell-stats-tooltip-name {
+  flex: 1 1 auto;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.cell-stats-tooltip-counts {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-stats-tooltip-ok {
+  color: var(--success-color);
+}
+
+.cell-stats-tooltip-bad {
+  color: var(--error-color);
+}
+
+.cell-stats-tooltip-latency {
+  color: var(--text-tertiary);
+}

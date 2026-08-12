@@ -20,6 +20,8 @@ import (
 //  3. an unambiguous host match
 //
 // Anything still unmatched becomes its own site keyed by host.
+//
+// Sites without any API key are automatically filtered out.
 func BuildSites(snap *cpa.Snapshot) []Site {
 	sites := make([]Site, 0, 48)
 	byID := make(map[string]int)
@@ -116,8 +118,16 @@ func BuildSites(snap *cpa.Snapshot) []Site {
 		}
 	}
 
-	sortSites(sites)
-	return sites
+	// Filter out sites without any API key.
+	filtered := make([]Site, 0, len(sites))
+	for _, site := range sites {
+		if site.APIKey != "" {
+			filtered = append(filtered, site)
+		}
+	}
+
+	sortSites(filtered)
+	return filtered
 }
 
 func resolveSite(p cpa.Provider, byURL, byKey, byHost map[string][]int) (int, bool) {

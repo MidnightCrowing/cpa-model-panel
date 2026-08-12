@@ -1,4 +1,5 @@
 import { memo, useState } from 'react'
+import ReactDOMServer from 'react-dom/server'
 import type { EntryRef, Protocol, SiteView } from '../../api/types'
 import { VirtualList } from '../../components/VirtualList'
 import { refKey } from '../../lib/keys'
@@ -217,8 +218,29 @@ function CellStats({ refs, stats }: { refs: EntryRef[]; stats: StatsIndex }) {
   if (ok === 0 && failed === 0) return null
 
   const tone = failed === 0 ? 'is-ok' : ok === 0 ? 'is-bad' : 'is-mixed'
+
+  const tooltipContent = (
+    <div className="cell-stats-tooltip">
+      {refs.map((ref) => {
+        const cell = stats.byModel.get(refKey(ref.site, ref.upstream))
+        if (!cell || (cell.ok === 0 && cell.failed === 0)) return null
+        return (
+          <div key={refKey(ref.site, ref.upstream)} className="cell-stats-tooltip-row">
+            <span className="cell-stats-tooltip-name">{ref.upstream}</span>
+            <span className="cell-stats-tooltip-counts">
+              <span className="cell-stats-tooltip-ok">{cell.ok} 成功</span>
+              {' / '}
+              <span className="cell-stats-tooltip-bad">{cell.failed} 失败</span>
+              {cell.latency_ms ? <span className="cell-stats-tooltip-latency"> · {cell.latency_ms}ms</span> : null}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+
   return (
-    <span className={`cell-stats ${tone}`} title={lines.join('\n')}>
+    <span className={`cell-stats ${tone}`} title={lines.join('\n')} data-tooltip-html={ReactDOMServer.renderToStaticMarkup(tooltipContent)}>
       <span className="cell-stats-ok">{ok}</span>
       <span className="cell-stats-sep">/</span>
       <span className="cell-stats-bad">{failed}</span>

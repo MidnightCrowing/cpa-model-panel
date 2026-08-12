@@ -142,11 +142,6 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
     [dispatch, layout.sites, onView, push, refsOfSite],
   )
 
-  const unhealthy = useMemo(
-    () => view.sites.filter((site) => !site.has_key || (site.failures ?? 0) > 0),
-    [view.sites],
-  )
-
   // Priority edits reorder the columns immediately, without a round trip.
   const orderedSites = useMemo(() => {
     const withDraft = layout.sites.map((site) => ({
@@ -203,20 +198,6 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
           {stats.configured ? ` · 统计 ${stats.range}` : ''}
         </span>
       </div>
-
-      {unhealthy.length > 0 && (
-        <div className="notice">
-          <span>
-            {unhealthy.length} 个站点探测不通
-            {unhealthy.some((site) => !site.has_key)
-              ? `（其中 ${unhealthy.filter((site) => !site.has_key).length} 个在 CPA 里没有 api-key）`
-              : ''}
-            ：{unhealthy.slice(0, 6).map((site) => site.name).join('、')}
-            {unhealthy.length > 6 ? ' …' : ''}
-          </span>
-          <span className="muted">点列头展开站点菜单，可单独刷新或删除</span>
-        </div>
-      )}
 
       <MatrixGrid
         rows={layout.rows}

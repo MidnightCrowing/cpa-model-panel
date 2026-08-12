@@ -65,6 +65,15 @@ export function SiteMenu({
       <div className="site-menu-title">
         <span className="site-menu-name">{site.name}</span>
         {site.temp && <span className="chip chip-egg">鸡蛋</span>}
+        <button
+          type="button"
+          className="btn-icon site-menu-refresh"
+          disabled={busy}
+          onClick={() => actions.onRefresh(site)}
+          title="刷新此站点"
+        >
+          {busy ? '⏳' : '🔄'}
+        </button>
       </div>
 
       <div className="site-menu-meta mono">{site.base_url}</div>
@@ -79,30 +88,29 @@ export function SiteMenu({
       )}
       {site.last_ok_at && <div className="site-menu-meta">最后成功：{site.last_ok_at.replace('T', ' ').slice(0, 19)}</div>}
 
-      <label className="site-menu-priority">
+      <div className="site-menu-priority">
         <span>优先级</span>
-        <button type="button" className="btn btn-secondary btn-xs" onClick={() => commitPriority(draftPriority - 1)}>
-          −
-        </button>
-        <input
-          className="input mono"
-          type="number"
-          value={draftPriority}
-          onChange={(event) => setDraftPriority(Number.parseInt(event.target.value, 10) || 0)}
-          onBlur={() => actions.onPriority(site, draftPriority)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur()
-          }}
-        />
-        <button type="button" className="btn btn-secondary btn-xs" onClick={() => commitPriority(draftPriority + 1)}>
-          +
-        </button>
-      </label>
+        <div className="site-menu-priority-controls">
+          <input
+            className="input mono"
+            type="number"
+            value={draftPriority}
+            onChange={(event) => setDraftPriority(Number.parseInt(event.target.value, 10) || 0)}
+            onBlur={() => actions.onPriority(site, draftPriority)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur()
+            }}
+          />
+          <button type="button" className="btn btn-secondary btn-xs" onClick={() => commitPriority(draftPriority - 1)}>
+            −
+          </button>
+          <button type="button" className="btn btn-secondary btn-xs" onClick={() => commitPriority(draftPriority + 1)}>
+            +
+          </button>
+        </div>
+      </div>
 
       <div className="site-menu-actions">
-        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => actions.onRefresh(site)}>
-          刷新此站点
-        </button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => actions.onEnableAll(site)}>
           整列全开
         </button>
@@ -114,10 +122,11 @@ export function SiteMenu({
             来源 ↗
           </a>
         )}
-        <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => actions.onDelete(site)}>
-          从 CPA 删除站点
-        </button>
       </div>
+
+      <button type="button" className="btn btn-danger btn-sm site-menu-delete" disabled={busy} onClick={() => actions.onDelete(site)}>
+        从 CPA 删除站点
+      </button>
     </div>
   )
 }
