@@ -90,7 +90,6 @@ function Shell() {
       {catalog.preview && (
         <SavePreview
           diff={catalog.preview.diff}
-          conflicts={catalog.preview.conflicts}
           created={catalog.preview.created}
           moved={catalog.preview.moved}
           busy={saving}

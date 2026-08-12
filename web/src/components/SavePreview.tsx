@@ -1,4 +1,4 @@
-import type { ChannelDiff, Conflict } from '../api/types'
+import type { ChannelDiff } from '../api/types'
 
 const CHANNEL_LABEL: Record<string, string> = {
   openai: 'openai-compatibility',
@@ -8,7 +8,6 @@ const CHANNEL_LABEL: Record<string, string> = {
 
 type Props = {
   diff: ChannelDiff[]
-  conflicts: Conflict[]
   created: string[] | null
   moved: number
   busy: boolean
@@ -22,7 +21,7 @@ type Props = {
  * A routing change can move hundreds of entries between CPA's lists; a count
  * alone is not enough to press the button with confidence.
  */
-export function SavePreview({ diff, conflicts, created, moved, busy, onConfirm, onCancel }: Props) {
+export function SavePreview({ diff, created, moved, busy, onConfirm, onCancel }: Props) {
   const total = diff.reduce((sum, item) => sum + item.added.length + item.removed.length + item.renamed.length, 0)
 
   return (
@@ -35,7 +34,7 @@ export function SavePreview({ diff, conflicts, created, moved, busy, onConfirm, 
           </button>
         </div>
 
-        {total === 0 && conflicts.length === 0 ? (
+        {total === 0 ? (
           <p className="muted">CPA 配置无需改动。</p>
         ) : (
           <p className="muted">
@@ -43,21 +42,6 @@ export function SavePreview({ diff, conflicts, created, moved, busy, onConfirm, 
             {moved > 0 ? ` · 其中 ${moved} 个模型按协议归位到另一张表` : ''}
             {created?.length ? ` · 新建 ${created.length} 个站点条目` : ''}
           </p>
-        )}
-
-        {conflicts.length > 0 && (
-          <section className="preview-conflicts">
-            <h4>⚠ {conflicts.length} 处命名冲突</h4>
-            <p className="muted">同一个站点里多个原始模型会被写成同一个名字，CPA 两条都会留着，实际用哪条不确定。</p>
-            <div className="preview-list mono">
-              {conflicts.map((conflict) => (
-                <div key={`${conflict.site}|${conflict.channel}|${conflict.name}`}>
-                  {conflict.site} · {CHANNEL_LABEL[conflict.channel] ?? conflict.channel} · {conflict.name} ←{' '}
-                  {conflict.upstreams.join(' , ')}
-                </div>
-              ))}
-            </div>
-          </section>
         )}
 
         {diff.map((item) => {

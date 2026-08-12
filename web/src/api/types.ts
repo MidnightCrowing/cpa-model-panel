@@ -53,14 +53,6 @@ export type SiteView = {
   failures?: number
 }
 
-/** Two upstream models at one site that would be written under one name. */
-export type Conflict = {
-  site: string
-  name: string
-  channel: Channel
-  upstreams: string[]
-}
-
 export type ChannelDiff = {
   channel: Channel
   added: string[]
@@ -73,7 +65,6 @@ export type SavePreview = {
   ok: boolean
   dry: true
   diff: ChannelDiff[]
-  conflicts: Conflict[]
   moved: number
   created: string[] | null
 }
@@ -161,7 +152,6 @@ export type View = {
   models: ModelView[]
   stats: Stats
   settings: Settings
-  conflicts?: Conflict[]
 }
 
 export type Op =
