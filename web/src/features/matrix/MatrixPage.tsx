@@ -4,12 +4,11 @@ import type { EntryRef, ModelView, Protocol, SiteView, View } from '../../api/ty
 import { Checkbox, Segmented } from '../../components/Controls'
 import { FilterMenu } from '../../components/FilterMenu'
 import { useDebounced, usePersistentState } from '../../lib/hooks'
-import { refKey } from '../../lib/keys'
+import { refKey, siteChannelKey } from '../../lib/keys'
 import { UNKNOWN_VENDOR, VENDORS, vendorOf } from '../../lib/vendor'
 import type { Draft, DraftAction } from '../../state/useDraft'
 import { useStats } from '../../state/useStats'
 import { useToasts } from '../../state/useToasts'
-import { EggDialog } from './EggDialog'
 import { MatrixGrid } from './MatrixGrid'
 import { buildMatrix, type MatrixRow } from './visibility'
 import { effectiveExcluded } from '../naming/grouping'
@@ -21,18 +20,18 @@ type Props = {
   onView: (view: View) => void
 }
 
-type ProtocolFilter = Protocol | 'all'
-
 export function MatrixPage({ view, draft, dispatch, onView }: Props) {
   const { push } = useToasts()
   const [rawQuery, setRawQuery] = useState('')
   const query = useDebounced(rawQuery)
-  const [protocol, setProtocol] = usePersistentState<ProtocolFilter>('panel.matrix.protocol', 'all')
+  // Keyed .v2 because the old setting could hold "all", a value this page no
+  // longer has: priorities are per protocol, so one combined view would have
+  // to show three different numbers per column.
+  const [protocol, setProtocol] = usePersistentState<Protocol>('panel.matrix.protocol.v2', 'openai')
   const [vendors, setVendors] = usePersistentState<string[]>('panel.matrix.vendors', [])
   const [sites, setSites] = usePersistentState<string[]>('panel.matrix.sites', [])
   const [hideEmptyRows, setHideEmptyRows] = usePersistentState('panel.matrix.hideRows', true)
   const [hideEmptyColumns, setHideEmptyColumns] = usePersistentState('panel.matrix.hideCols', true)
-  const [showEggDialog, setShowEggDialog] = useState(false)
   const [busySite, setBusySite] = useState<string | null>(null)
 
   const stats = useStats(true)
@@ -58,7 +57,14 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
     return present.has(UNKNOWN_VENDOR) ? [...known, UNKNOWN_VENDOR] : known
   }, [view.models, vendorOfModel])
 
-  const siteOptions = useMemo(() => view.sites.map((site) => site.name), [view.sites])
+  // Only sites CPA actually has an entry for in this list can be shown: the
+  // column's priority, toggles and save all address that one entry.
+  const protocolSites = useMemo(
+    () => view.sites.filter((site) => site.channels.includes(protocol)),
+    [protocol, view.sites],
+  )
+
+  const siteOptions = useMemo(() => protocolSites.map((site) => site.name), [protocolSites])
 
   // Excluded models never appear here: they are deleted from CPA's list.
   const models = useMemo(() => {
@@ -66,7 +72,7 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
     const vendorSet = new Set(vendors)
     return view.models.filter((model) => {
       if (effectiveExcluded(model, draft)) return false
-      if (protocol !== 'all' && model.protocol !== protocol) return false
+      if (model.protocol !== protocol) return false
       if (vendorSet.size > 0 && !vendorSet.has(vendorOfModel(model))) return false
       if (!needle) return true
       const alias = draft.renames[refKey(model.site, model.upstream)] ?? model.alias
@@ -75,10 +81,10 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
   }, [draft, protocol, query, vendorOfModel, vendors, view.models])
 
   const selectedSites = useMemo(() => {
-    if (sites.length === 0) return view.sites
+    if (sites.length === 0) return protocolSites
     const chosen = new Set(sites)
-    return view.sites.filter((site) => chosen.has(site.name))
-  }, [sites, view.sites])
+    return protocolSites.filter((site) => chosen.has(site.name))
+  }, [protocolSites, sites])
 
   const layout = useMemo(
     () =>
@@ -115,7 +121,10 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
       },
       onEnableAll: (site: SiteView) => dispatch({ kind: 'disable', targets: refsOfSite(site), disabled: false }),
       onDisableAll: (site: SiteView) => dispatch({ kind: 'disable', targets: refsOfSite(site), disabled: true }),
-      onPriority: (site: SiteView, priority: number) => dispatch({ kind: 'priority', site: site.id, priority }),
+      // The edit names the channel it applies to; the site's other two lists
+      // keep whatever CPA has.
+      onPriority: (site: SiteView, priority: number) =>
+        dispatch({ kind: 'priority', site: site.id, channel: protocol, priority }),
       onRefresh: (site: SiteView) => {
         setBusySite(site.id)
         void refreshSite(site.id)
@@ -139,19 +148,20 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
           .finally(() => setBusySite(null))
       },
     }),
-    [dispatch, layout.sites, onView, push, refsOfSite],
+    [dispatch, layout.sites, onView, protocol, push, refsOfSite],
   )
 
-  // Priority edits reorder the columns immediately, without a round trip.
+  // Priority edits reorder the columns immediately, without a round trip, and
+  // they order by *this* protocol's number.
   const orderedSites = useMemo(() => {
-    const withDraft = layout.sites.map((site) => ({
-      ...site,
-      priority: draft.priorities[site.id] ?? site.priority,
-    }))
-    return withDraft.sort((a, b) =>
-      a.priority !== b.priority ? b.priority - a.priority : a.name.localeCompare(b.name, 'zh-Hans-CN'),
-    )
-  }, [draft.priorities, layout.sites])
+    const priorityOf = (site: SiteView) =>
+      draft.priorities[siteChannelKey(site.id, protocol)] ?? site.priorities[protocol] ?? 0
+    return [...layout.sites].sort((a, b) => {
+      const pa = priorityOf(a)
+      const pb = priorityOf(b)
+      return pa !== pb ? pb - pa : a.name.localeCompare(b.name, 'zh-Hans-CN')
+    })
+  }, [draft.priorities, layout.sites, protocol])
 
   return (
     <>
@@ -168,10 +178,9 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
           value={protocol}
           onChange={setProtocol}
           options={[
-            { value: 'all', label: '全部', title: '显示全部，每行左侧的角标标明它属于哪张 CPA 表' },
-            { value: 'openai', label: 'OpenAI', title: '只看写入 openai-compatibility 的模型' },
-            { value: 'codex', label: 'Codex', title: '只看写入 codex-api-key 的模型' },
-            { value: 'claude', label: 'Claude', title: '只看写入 claude-api-key 的模型' },
+            { value: 'openai', label: 'OpenAI', title: 'openai-compatibility 这张表，及它自己的站点优先级' },
+            { value: 'codex', label: 'Codex', title: 'codex-api-key 这张表，及它自己的站点优先级' },
+            { value: 'claude', label: 'Claude', title: 'claude-api-key 这张表，及它自己的站点优先级' },
           ]}
         />
         <FilterMenu label="供应商" allLabel="所有供应商" options={vendorOptions} selected={vendors} onChange={setVendors} />
@@ -188,9 +197,6 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
           label="隐藏空列"
           title="不提供任何当前可见模型的站点不显示"
         />
-        <button type="button" className="btn btn-secondary" onClick={() => setShowEggDialog(true)} title="粘贴论坛里分享的临时接口">
-          + 鸡蛋
-        </button>
         <span className="muted toolbar-status">
           {layout.rows.length} 行 · {orderedSites.length} 站点
           {layout.hiddenRows > 0 ? ` · 隐藏 ${layout.hiddenRows} 行` : ''}
@@ -202,6 +208,7 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
       <MatrixGrid
         rows={layout.rows}
         sites={orderedSites}
+        protocol={protocol}
         disabledDraft={draft.disabled}
         baseDisabled={baseDisabled}
         priorityDraft={draft.priorities}
@@ -209,8 +216,6 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
         busySite={busySite}
         actions={actions}
       />
-
-      {showEggDialog && <EggDialog onClose={() => setShowEggDialog(false)} onView={onView} />}
     </>
   )
 }

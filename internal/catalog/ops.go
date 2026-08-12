@@ -24,6 +24,7 @@ type Op struct {
 	To       string     `json:"to,omitempty"`
 	Disabled bool       `json:"disabled,omitempty"`
 	Site     string     `json:"site,omitempty"`
+	Channel  string     `json:"channel,omitempty"`
 	Priority int        `json:"priority,omitempty"`
 }
 
@@ -31,7 +32,7 @@ type OpResult struct {
 	Exclusions RefSet
 	Disabled   RefSet
 	Keeps      RefSet
-	Priorities map[string]int
+	Priorities map[string]map[string]int // site -> channel -> priority
 	Renamed    int
 	Skipped    int
 }
@@ -43,7 +44,7 @@ func ApplyOps(cat *Catalog, exclusions, disabled, keeps RefSet, ops []Op) (OpRes
 		Exclusions: copyRefSet(exclusions),
 		Disabled:   copyRefSet(disabled),
 		Keeps:      copyRefSet(keeps),
-		Priorities: map[string]int{},
+		Priorities: map[string]map[string]int{},
 	}
 
 	index := cat.entryIndex()
@@ -113,14 +114,21 @@ func ApplyOps(cat *Catalog, exclusions, disabled, keeps RefSet, ops []Op) (OpRes
 
 		case OpSetPriority:
 			site := strings.TrimSpace(op.Site)
+			channel := strings.TrimSpace(op.Channel)
 			if site == "" {
 				return result, fmt.Errorf("set_priority 缺少站点")
+			}
+			if channel == "" {
+				return result, fmt.Errorf("set_priority 缺少协议")
 			}
 			if cat.Site(site) == nil {
 				result.Skipped++
 				continue
 			}
-			result.Priorities[site] = op.Priority
+			if result.Priorities[site] == nil {
+				result.Priorities[site] = map[string]int{}
+			}
+			result.Priorities[site][channel] = op.Priority
 
 		default:
 			return result, fmt.Errorf("未知操作类型 %q", op.Type)

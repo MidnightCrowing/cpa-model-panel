@@ -359,10 +359,17 @@ func TestDiscoveredModelsLandInTheProtocolChannel(t *testing.T) {
 	}
 }
 
+// Each channel carries its own priority, so an edit names the channel it
+// applies to and leaves the site's other channels alone.
 func TestPriorityIsWrittenBack(t *testing.T) {
 	snap := fixture()
 	cat := Reconcile(nil, snap)
-	result, err := ApplyOps(cat, RefSet{}, RefSet{}, RefSet{}, []Op{{Type: OpSetPriority, Site: "示例站点 / free", Priority: 7}})
+	result, err := ApplyOps(cat, RefSet{}, RefSet{}, RefSet{}, []Op{{
+		Type:     OpSetPriority,
+		Site:     "示例站点 / free",
+		Channel:  string(cpa.ChannelOpenAI),
+		Priority: 7,
+	}})
 	if err != nil {
 		t.Fatalf("ApplyOps: %v", err)
 	}
@@ -374,6 +381,10 @@ func TestPriorityIsWrittenBack(t *testing.T) {
 	}
 	if !write.Changed[cpa.ChannelOpenAI] {
 		t.Fatal("priority change was not detected")
+	}
+	// The codex list must not inherit the openai edit.
+	if contains(payloadJSON(t, write.Channels[cpa.ChannelCodex]), `"priority":7`) {
+		t.Fatal("openai priority leaked into codex-api-key")
 	}
 }
 
@@ -571,9 +582,7 @@ func TestRoutingOffStillReproducesCpaExactly(t *testing.T) {
 	}
 }
 
-// A site's priority is whatever openai-compatibility says. Filling it in from
-// another channel meant a site set back to 0 in CPA kept showing its old
-// number, which looks exactly like a panel that will not refresh.
+// Each channel of a site stores its own priority independently.
 func TestSitePriorityComesFromTheOpenAiEntry(t *testing.T) {
 	snap := fixture()
 	// The codex entry carries a priority; the openai one does not.
@@ -581,8 +590,13 @@ func TestSitePriorityComesFromTheOpenAiEntry(t *testing.T) {
 	snap.Channels[cpa.ChannelCodex][0].Raw["priority"] = float64(7)
 
 	for _, site := range BuildSites(snap) {
-		if site.Name == "示例站点 / office" && site.Priority != 0 {
-			t.Fatalf("priority = %d, want 0 (the openai entry has none)", site.Priority)
+		if site.Name == "示例站点 / office" {
+			if site.Priorities[cpa.ChannelOpenAI] != 0 {
+				t.Fatalf("openai priority = %d, want 0", site.Priorities[cpa.ChannelOpenAI])
+			}
+			if site.Priorities[cpa.ChannelCodex] != 7 {
+				t.Fatalf("codex priority = %d, want 7", site.Priorities[cpa.ChannelCodex])
+			}
 		}
 	}
 }
@@ -605,7 +619,67 @@ func TestCodexOnlySiteKeepsItsOwnPriority(t *testing.T) {
 	if len(sites) != 1 {
 		t.Fatalf("sites = %d, want 1", len(sites))
 	}
-	if sites[0].Priority != 9 {
-		t.Fatalf("priority = %d, want 9", sites[0].Priority)
+	if sites[0].Priorities[cpa.ChannelCodex] != 9 {
+		t.Fatalf("priority = %d, want 9", sites[0].Priorities[cpa.ChannelCodex])
+	}
+}
+
+// One host commonly serves several groups, each with its own api-key. Matching
+// on the base-url alone merged them into one column, which put two different
+// accounts behind a single toggle.
+func TestSameURLDifferentKeyIsADifferentSite(t *testing.T) {
+	snap := fixture()
+	extra, err := cpa.ProvidersFromPayload([]map[string]any{{
+		// The free site's exact url, but another group's key.
+		"base-url": "https://ai.example.com/v1",
+		"api-key":  "key-other-group",
+		"models":   []any{map[string]any{"name": "gpt-5.4"}},
+	}})
+	if err != nil {
+		t.Fatalf("payload: %v", err)
+	}
+	snap.Channels[cpa.ChannelCodex] = append(snap.Channels[cpa.ChannelCodex], extra...)
+
+	sites := BuildSites(snap)
+	for _, site := range sites {
+		if site.Name == "示例站点 / free" && site.APIKey == "key-free" {
+			if idx, ok := site.Providers[cpa.ChannelCodex]; ok && idx == 1 {
+				t.Fatal("another group's codex entry was merged into 示例站点 / free")
+			}
+		}
+	}
+	if len(sites) != 3 {
+		t.Fatalf("sites = %d, want 3 (the extra group is its own)", len(sites))
+	}
+}
+
+// A shared key is the one thing that does prove two entries are one account:
+// the claude entry sits on a different url shape and still belongs to free.
+func TestSharedKeyMergesAcrossChannels(t *testing.T) {
+	for _, site := range BuildSites(fixture()) {
+		if site.Name != "示例站点 / free" {
+			continue
+		}
+		if !site.HasChannel(cpa.ChannelClaude) {
+			t.Fatal("the claude entry sharing key-free was not attached")
+		}
+	}
+}
+
+// "<站点> / <分组>" is how the sites are named in CPA; the matrix shows the
+// site large and the group as a subtitle instead of repeating the whole string.
+func TestNameSplitsIntoSiteAndGroup(t *testing.T) {
+	found := false
+	for _, site := range BuildSites(fixture()) {
+		if site.Name != "示例站点 / free" {
+			continue
+		}
+		found = true
+		if site.Label != "示例站点" || site.Group != "free" {
+			t.Fatalf("label/group = %q / %q, want 示例站点 / free", site.Label, site.Group)
+		}
+	}
+	if !found {
+		t.Fatal("示例站点 / free is missing")
 	}
 }

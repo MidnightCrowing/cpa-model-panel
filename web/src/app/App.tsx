@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { clearToken, getToken } from '../api/client'
 import { SavePreview } from '../components/SavePreview'
 import { Toasts } from '../components/Toasts'
+import { EggDialog } from '../features/matrix/EggDialog'
 import { MatrixPage } from '../features/matrix/MatrixPage'
 import { NamingPage } from '../features/naming/NamingPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
@@ -22,6 +23,7 @@ export default function App() {
 function Shell() {
   const [authed, setAuthed] = useState(() => !!getToken())
   const [tab, setTab] = usePersistentState<Tab>('panel.tab', 'naming')
+  const [showEggDialog, setShowEggDialog] = useState(false)
 
   const onUnauthorized = useCallback(() => setAuthed(false), [])
   const catalog = useCatalog(authed, onUnauthorized)
@@ -54,6 +56,7 @@ function Shell() {
         onSave={() => void catalog.requestPreview()}
         onDiscard={catalog.discard}
         onReload={() => void catalog.load()}
+        onEgg={() => setShowEggDialog(true)}
         onLogout={() => {
           clearToken()
           setAuthed(false)
@@ -97,6 +100,8 @@ function Shell() {
           onCancel={catalog.cancelPreview}
         />
       )}
+
+      {showEggDialog && <EggDialog onClose={() => setShowEggDialog(false)} onView={catalog.setView} />}
     </div>
   )
 }

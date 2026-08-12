@@ -23,6 +23,7 @@ type Props = {
   onSave: () => void
   onDiscard: () => void
   onReload: () => void
+  onEgg: () => void
   onLogout: () => void
 }
 
@@ -40,6 +41,7 @@ export function Header({
   onSave,
   onDiscard,
   onReload,
+  onEgg,
   onLogout,
 }: Props) {
   const busy = loading || saving || refreshing !== null
@@ -80,6 +82,9 @@ export function Header({
 
         <button className="btn btn-secondary" onClick={onRefresh} disabled={busy} title="让 CPA 逐站拉取上游模型列表并合并进面板缓存；不会直接写回 CPA">
           {refreshing ? `刷新中 ${refreshing.completed}/${refreshing.total}` : '刷新站点模型'}
+        </button>
+        <button className="btn btn-secondary" onClick={onEgg} disabled={busy} title="粘贴论坛里分享的临时接口">
+          + 鸡蛋
         </button>
         <button className="btn btn-ghost" onClick={onReload} disabled={busy} title="重新读取 CPA 当前配置">
           重新载入

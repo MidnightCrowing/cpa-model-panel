@@ -1,43 +1,101 @@
-/* ── Cell stats tooltip ─────────────────────────────────── */
+/* ── Tooltip ────────────────────────────────────────────── */
 
-.cell-stats-tooltip {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 2px 0;
-  min-width: 200px;
+/* Fixed to the viewport and never interactive: the tooltip is drawn over the
+   grid, so taking the pointer would swallow hovers on the cells underneath. */
+.tooltip {
+  position: fixed;
+  z-index: 900;
+  pointer-events: none;
+  max-width: 320px;
+  padding: 8px 10px;
+  border: 1px solid var(--floating-border);
+  border-radius: 8px;
+  background: var(--floating-surface);
+  box-shadow: var(--floating-shadow);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  animation: tooltip-in 0.1s ease-out;
 }
 
-.cell-stats-tooltip-row {
+.tooltip.is-below {
+  transform: translateX(-50%);
+}
+
+.tooltip.is-above {
+  transform: translate(-50%, -100%);
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ── Per-cell request outcomes ──────────────────────────── */
+
+.stat-tip {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.stat-tip-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.stat-tip-name {
+  font-family: var(--mono);
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+.stat-tip-counts {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stat-tip-ok {
+  color: var(--success-badge-text);
+  font-weight: 700;
+}
+
+.stat-tip-bad {
+  color: var(--failure-badge-text);
+  font-weight: 700;
+}
+
+.stat-tip-sep {
+  color: var(--text-quaternary, #6f6962);
+  margin: 0 3px;
+}
+
+.stat-tip-latency {
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.stat-tip-total {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 16px;
+  gap: 14px;
+  margin-top: 2px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-muted);
 }
 
-.cell-stats-tooltip-name {
-  flex: 1 1 auto;
-  font-weight: 500;
-  color: var(--text-primary);
+.tooltip-title {
+  font-weight: 700;
+  margin-bottom: 4px;
 }
 
-.cell-stats-tooltip-counts {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.cell-stats-tooltip-ok {
-  color: var(--success-color);
-}
-
-.cell-stats-tooltip-bad {
-  color: var(--error-color);
-}
-
-.cell-stats-tooltip-latency {
-  color: var(--text-tertiary);
+.tooltip-line {
+  color: var(--text-secondary);
 }

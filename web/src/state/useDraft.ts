@@ -1,11 +1,14 @@
 import { useReducer } from 'react'
-import type { EntryRef, ModelView, Op, SiteView } from '../api/types'
-import { keyOf, parseKey, refKey } from '../lib/keys'
+import type { Channel, EntryRef, ModelView, Op, SiteView } from '../api/types'
+import { keyOf, parseKey, parseSiteChannelKey, refKey, siteChannelKey } from '../lib/keys'
 
 /**
  * The draft holds *overrides* keyed by entry, never a copy of the data. Every
  * override addresses explicit (site, upstream) pairs, which is what makes an
  * edit made on one row apply to that row only.
+ *
+ * priorities is keyed by (site, channel): CPA ranks a site separately in each
+ * of its three lists, so one number per site would overwrite the other two.
  */
 export type Draft = {
   renames: Record<string, string>
@@ -24,7 +27,7 @@ export type DraftAction =
   | { kind: 'exclude'; targets: EntryRef[]; excluded: boolean }
   | { kind: 'keep'; targets: EntryRef[]; kept: boolean }
   | { kind: 'disable'; targets: EntryRef[]; disabled: boolean }
-  | { kind: 'priority'; site: string; priority: number }
+  | { kind: 'priority'; site: string; channel: Channel; priority: number }
   | { kind: 'reset' }
 
 function reduce(draft: Draft, action: DraftAction): Draft {
@@ -50,7 +53,10 @@ function reduce(draft: Draft, action: DraftAction): Draft {
       return { ...draft, disabled }
     }
     case 'priority':
-      return { ...draft, priorities: { ...draft.priorities, [action.site]: action.priority } }
+      return {
+        ...draft,
+        priorities: { ...draft.priorities, [siteChannelKey(action.site, action.channel)]: action.priority },
+      }
     case 'reset':
       return emptyDraft()
   }
@@ -101,10 +107,11 @@ export function changedKeys(draft: Draft, baseline: Baseline) {
     if (!base) continue
     if (value !== !!base.disabled) disabled.push([key, value])
   }
-  for (const [site, value] of Object.entries(draft.priorities)) {
+  for (const [key, value] of Object.entries(draft.priorities)) {
+    const { site, channel } = parseSiteChannelKey(key)
     const base = baseline.sites.get(site)
     if (!base) continue
-    if (value !== base.priority) priorities.push([site, value])
+    if (value !== (base.priorities?.[channel as Channel] ?? 0)) priorities.push([key, value])
   }
 
   return { renames, excluded, keeps, disabled, priorities }
@@ -141,7 +148,10 @@ export function buildOps(draft: Draft, baseline: Baseline): Op[] {
   pushRefOp(ops, changed.disabled, true, (targets) => ({ type: 'set_disabled', targets, disabled: true }))
   pushRefOp(ops, changed.disabled, false, (targets) => ({ type: 'set_disabled', targets, disabled: false }))
 
-  for (const [site, priority] of changed.priorities) ops.push({ type: 'set_priority', site, priority })
+  for (const [key, priority] of changed.priorities) {
+    const { site, channel } = parseSiteChannelKey(key)
+    ops.push({ type: 'set_priority', site, channel: channel as Channel, priority })
+  }
 
   return ops
 }

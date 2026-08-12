@@ -38,8 +38,15 @@ export type ModelView = EntryRef & {
 
 export type SiteView = {
   id: string
+  /** The full CPA provider name, "<站点> / <分组>" by convention. */
   name: string
-  priority: number
+  /** name without the group suffix. */
+  label: string
+  /** The group half of name, when it has one. Two entries on one host usually
+   *  differ only by group and api-key. */
+  group?: string
+  /** CPA ranks a site separately in each list, so priority is per channel. */
+  priorities: Partial<Record<Channel, number>>
   channels: Channel[]
   active: number
   base_url: string
@@ -161,7 +168,7 @@ export type Op =
   | { type: 'keep'; targets: EntryRef[] }
   | { type: 'unkeep'; targets: EntryRef[] }
   | { type: 'set_disabled'; targets: EntryRef[]; disabled: boolean }
-  | { type: 'set_priority'; site: string; priority: number }
+  | { type: 'set_priority'; site: string; channel: Channel; priority: number }
 
 export type SaveResult = {
   ok: boolean

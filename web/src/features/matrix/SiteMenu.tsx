@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { SiteView } from '../../api/types'
+import type { Protocol, SiteView } from '../../api/types'
 
 export type SiteMenuActions = {
   onRefresh: (site: SiteView) => void
@@ -18,18 +18,20 @@ const CHANNEL_LABEL: Record<string, string> = {
 /**
  * Everything you can do to one site, in one popover.
  *
- * The column is 120px wide and there are five actions plus a priority; a
- * popover keeps the grid readable and gets rid of the window.prompt() the
- * priority used to need.
+ * The column is 120px wide and there are five actions plus a priority, so a
+ * popover keeps the grid readable. The priority applies to the protocol the
+ * page is showing: CPA ranks a site separately in each of its three lists.
  */
 export function SiteMenu({
   site,
+  protocol,
   priority,
   busy,
   actions,
   onClose,
 }: {
   site: SiteView
+  protocol: Protocol
   priority: number
   busy: boolean
   actions: SiteMenuActions
@@ -60,10 +62,15 @@ export function SiteMenu({
     actions.onPriority(site, value)
   }
 
+  const otherChannels = site.channels.filter((channel) => channel !== protocol)
+
   return (
     <div className="site-menu" ref={rootRef}>
       <div className="site-menu-title">
-        <span className="site-menu-name">{site.name}</span>
+        <span className="site-menu-name">
+          {site.label || site.name}
+          {site.group && <span className="site-menu-group">{site.group}</span>}
+        </span>
         {site.temp && <span className="chip chip-egg">鸡蛋</span>}
         <button
           type="button"
@@ -71,16 +78,9 @@ export function SiteMenu({
           disabled={busy}
           onClick={() => actions.onRefresh(site)}
           title="刷新此站点"
+          aria-label="刷新此站点"
         >
-          {busy ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 12a9 9 0 11-6.219-8.56" />
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0118.8-4.3M22 12.5a10 10 0 01-18.8 4.2" />
-            </svg>
-          )}
+          <RefreshIcon spinning={busy} />
         </button>
       </div>
 
@@ -88,7 +88,6 @@ export function SiteMenu({
       <div className="site-menu-meta">
         配置于：{site.channels.map((channel) => CHANNEL_LABEL[channel] ?? channel).join('、') || '—'}
       </div>
-      {!site.has_key && <div className="site-menu-warn">CPA 里这条没有 api-key，无法探测（它自己的界面也不显示）</div>}
       {site.last_error && (
         <div className="site-menu-warn" title={site.last_error}>
           上次探测失败{site.failures ? ` ×${site.failures}` : ''}：{site.last_error.slice(0, 60)}
@@ -97,8 +96,14 @@ export function SiteMenu({
       {site.last_ok_at && <div className="site-menu-meta">最后成功：{site.last_ok_at.replace('T', ' ').slice(0, 19)}</div>}
 
       <div className="site-menu-priority">
-        <span>优先级</span>
-        <div className="site-menu-priority-controls">
+        <span className="site-menu-priority-label">
+          优先级
+          <span className="muted">{CHANNEL_LABEL[protocol]}</span>
+        </span>
+        <span className="site-menu-stepper">
+          <button type="button" className="btn btn-secondary btn-xs" onClick={() => commitPriority(draftPriority - 1)}>
+            −
+          </button>
           <input
             className="input mono"
             type="number"
@@ -109,14 +114,19 @@ export function SiteMenu({
               if (event.key === 'Enter') event.currentTarget.blur()
             }}
           />
-          <button type="button" className="btn btn-secondary btn-xs" onClick={() => commitPriority(draftPriority - 1)}>
-            −
-          </button>
           <button type="button" className="btn btn-secondary btn-xs" onClick={() => commitPriority(draftPriority + 1)}>
             +
           </button>
-        </div>
+        </span>
       </div>
+      {otherChannels.length > 0 && (
+        <div className="site-menu-meta">
+          其它协议：
+          {otherChannels
+            .map((channel) => `${CHANNEL_LABEL[channel] ?? channel} ${site.priorities[channel] ?? 0}`)
+            .join('　')}
+        </div>
+      )}
 
       <div className="site-menu-actions">
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => actions.onEnableAll(site)}>
@@ -125,16 +135,42 @@ export function SiteMenu({
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => actions.onDisableAll(site)}>
           整列全关
         </button>
-        {site.source_url && (
-          <a className="btn btn-secondary btn-sm" href={site.source_url} target="_blank" rel="noreferrer noopener">
-            来源 ↗
-          </a>
-        )}
       </div>
 
-      <button type="button" className="btn btn-danger btn-sm site-menu-delete" disabled={busy} onClick={() => actions.onDelete(site)}>
+      {site.source_url && (
+        <a className="btn btn-ghost btn-sm site-menu-source" href={site.source_url} target="_blank" rel="noreferrer noopener">
+          来源 ↗
+        </a>
+      )}
+
+      <button
+        type="button"
+        className="btn btn-danger btn-sm site-menu-delete"
+        disabled={busy}
+        onClick={() => actions.onDelete(site)}
+      >
         从 CPA 删除站点
       </button>
     </div>
+  )
+}
+
+function RefreshIcon({ spinning }: { spinning: boolean }) {
+  return (
+    <svg
+      className={spinning ? 'icon-spin' : undefined}
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <polyline points="21 3 21 9 15 9" />
+    </svg>
   )
 }

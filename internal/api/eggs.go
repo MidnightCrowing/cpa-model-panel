@@ -243,10 +243,14 @@ func eggPriority(sites []catalog.SiteView) int {
 	highest := 0
 	for _, site := range sites {
 		if site.Temp {
-			return site.Priority
+			for _, p := range site.Priorities {
+				return p
+			}
 		}
-		if site.Priority > highest {
-			highest = site.Priority
+		for _, p := range site.Priorities {
+			if p > highest {
+				highest = p
+			}
 		}
 	}
 	return highest + 50

@@ -71,9 +71,10 @@ func TestPreviewNamesWhatWouldChange(t *testing.T) {
 	}
 }
 
-// A site CPA holds without credentials cannot be probed; saying that beats
-// relaying the upstream's "Invalid token".
-func TestKeylessSiteIsNotProbed(t *testing.T) {
+// A provider CPA holds without credentials can never authenticate, so the
+// panel drops it rather than showing a column that fails every probe. CPA's
+// own management UI hides these too, which is how they accumulate unnoticed.
+func TestKeylessSiteIsDropped(t *testing.T) {
 	fake := newFakeCPA(t)
 	fake.lists["codex-api-key"] = append(fake.lists["codex-api-key"], map[string]any{
 		"base-url": "https://nokey.example.com/v1",
@@ -82,12 +83,15 @@ func TestKeylessSiteIsNotProbed(t *testing.T) {
 	})
 	server := newTestServer(t, fake)
 
-	res := call(t, server, http.MethodPost, "/api/sites/"+"host%3Anokey.example.com"+"/refresh", "")
-	if res.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400: %s", res.Code, res.Body.String())
+	view := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
+	for _, site := range view.Sites {
+		if strings.Contains(site.BaseURL, "nokey.example.com") {
+			t.Fatalf("keyless entry became a site: %+v", site)
+		}
 	}
-	if !strings.Contains(res.Body.String(), "api-key") {
-		t.Fatalf("error should explain the missing key: %s", res.Body.String())
+
+	if res := call(t, server, http.MethodPost, "/api/sites/host%3Anokey.example.com/refresh", ""); res.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404: %s", res.Code, res.Body.String())
 	}
 }
 

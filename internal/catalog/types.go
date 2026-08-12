@@ -87,16 +87,27 @@ func (e *Entry) Channels() []string {
 // Site is a logical站点: one CPA account, possibly configured in several
 // channel lists under different (or missing) names.
 type Site struct {
-	ID       string
-	Name     string
-	Priority int
-	BaseURL  string
-	Headers  map[string]string
-	APIKey   string
+	ID   string
+	Name string
+	// Label and Group split Name on the "<站点> / <分组>" convention. One host
+	// commonly serves several groups whose only real difference is the
+	// api-key, so the group is what tells two columns apart.
+	Label string
+	Group string
+	// Priorities is per channel: CPA ranks a site separately in each of its
+	// three lists, and collapsing them onto one number would overwrite two of
+	// them on the next save.
+	Priorities map[cpa.Channel]int
+	BaseURL    string
+	Headers    map[string]string
+	APIKey     string
 
 	// Providers maps a channel to the provider index inside the snapshot.
 	Providers map[cpa.Channel]int
 }
+
+// Priority returns the site's rank in one channel.
+func (s Site) Priority(ch cpa.Channel) int { return s.Priorities[ch] }
 
 func (s Site) HasChannel(ch cpa.Channel) bool {
 	_, ok := s.Providers[ch]

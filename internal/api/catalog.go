@@ -220,14 +220,30 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 // They cannot work — CPA has nothing to authenticate with — and CPA's own
 // management UI hides them, so they accumulate invisibly and fail every probe.
 // A snapshot is written first, as with any other removal.
+//
+// This reads the raw CPA snapshot, not the site list: BuildSites drops keyless
+// entries so they never reach the UI, which would leave this with nothing to
+// find if it went through the catalog.
 func (s *Server) sweepKeylessSites(st *state) ([]string, error) {
-	victims := make([]catalog.Site, 0)
-	for _, site := range st.Catalog.Sites() {
-		if strings.TrimSpace(site.APIKey) == "" {
-			victims = append(victims, site)
+	drop := make(map[cpa.Channel]map[int]bool, len(cpa.AllChannels))
+	names := make([]string, 0)
+	found := 0
+	for _, ch := range cpa.AllChannels {
+		drop[ch] = map[int]bool{}
+		for idx, provider := range st.Snapshot.Providers(ch) {
+			if len(provider.APIKeys()) > 0 {
+				continue
+			}
+			drop[ch][idx] = true
+			found++
+			label := strings.TrimSpace(provider.Name)
+			if label == "" {
+				label = provider.BaseURL
+			}
+			names = append(names, label)
 		}
 	}
-	if len(victims) == 0 {
+	if found == 0 {
 		return nil, nil
 	}
 
@@ -235,18 +251,6 @@ func (s *Server) sweepKeylessSites(st *state) ([]string, error) {
 		return nil, err
 	}
 	_ = s.Store.PruneSnapshots(s.Retain)
-
-	drop := make(map[cpa.Channel]map[int]bool, len(cpa.AllChannels))
-	for _, ch := range cpa.AllChannels {
-		drop[ch] = map[int]bool{}
-	}
-	names := make([]string, 0, len(victims))
-	for _, site := range victims {
-		names = append(names, site.Name)
-		for ch, idx := range site.Providers {
-			drop[ch][idx] = true
-		}
-	}
 
 	for _, ch := range cpa.AllChannels {
 		if len(drop[ch]) == 0 {
@@ -262,9 +266,6 @@ func (s *Server) sweepKeylessSites(st *state) ([]string, error) {
 		if err := s.CPA.PutChannel(ch, next); err != nil {
 			return nil, err
 		}
-	}
-	for _, site := range victims {
-		_ = s.Store.ForgetSite(site.ID)
 	}
 	return names, nil
 }

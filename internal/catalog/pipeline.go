@@ -96,12 +96,17 @@ type ModelView struct {
 }
 
 type SiteView struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Priority int      `json:"priority"`
-	Channels []string `json:"channels"`
-	Active   int      `json:"active"`
-	BaseURL  string   `json:"base_url"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Label and Group split Name on the "<站点> / <分组>" convention, so the
+	// matrix can show the site large and the group as a subtitle.
+	Label string `json:"label"`
+	Group string `json:"group,omitempty"`
+	// Priorities is per channel — CPA ranks a site separately in each list.
+	Priorities map[string]int `json:"priorities"`
+	Channels   []string       `json:"channels"`
+	Active     int            `json:"active"`
+	BaseURL    string         `json:"base_url"`
 	// HasKey is false for entries CPA holds with api-key: "". Its own UI hides
 	// those, so they are invisible there while still failing every probe.
 	HasKey bool `json:"has_key"`
@@ -275,14 +280,20 @@ func Compute(in Inputs) (View, error) {
 				channels = append(channels, string(ch))
 			}
 		}
+		priorities := make(map[string]int, len(site.Priorities))
+		for ch, p := range site.Priorities {
+			priorities[string(ch)] = p
+		}
 		entry := SiteView{
-			ID:       site.ID,
-			Name:     site.Name,
-			Priority: site.Priority,
-			Channels: channels,
-			Active:   activeBySite[site.ID],
-			BaseURL:  site.BaseURL,
-			HasKey:   strings.TrimSpace(site.APIKey) != "",
+			ID:         site.ID,
+			Name:       site.Name,
+			Label:      site.Label,
+			Group:      site.Group,
+			Priorities: priorities,
+			Channels:   channels,
+			Active:     activeBySite[site.ID],
+			BaseURL:    site.BaseURL,
+			HasKey:     strings.TrimSpace(site.APIKey) != "",
 		}
 		if temp, ok := in.TempSites[site.ID]; ok {
 			entry.Temp = true

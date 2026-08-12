@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"hash/fnv"
 	"net/url"
 	"sort"
 	"strconv"
@@ -15,13 +16,17 @@ import (
 // for site identity. codex-api-key / claude-api-key entries have no name at
 // all, so they are matched back to an openai entry by, in order:
 //
-//  1. identical base-url
-//  2. a shared API key   (disambiguates one host hosting several groups)
-//  3. an unambiguous host match
+//  1. a shared API key
+//  2. an identical base-url, when the keys do not disagree
+//  3. an unambiguous host match, under the same guard
 //
-// Anything still unmatched becomes its own site keyed by host.
+// The key comes first on purpose. Upstreams like new-api serve several groups
+// from one host and give each its own key, so a matching base-url is not
+// evidence of the same account — a matching key is. Anything still unmatched
+// becomes its own site keyed by host.
 //
-// Sites without any API key are automatically filtered out.
+// Entries CPA holds with an empty api-key can never authenticate and are
+// dropped: CPA's own UI does not show them either.
 func BuildSites(snap *cpa.Snapshot) []Site {
 	sites := make([]Site, 0, 48)
 	byID := make(map[string]int)
@@ -32,6 +37,7 @@ func BuildSites(snap *cpa.Snapshot) []Site {
 	add := func(id, name string, ch cpa.Channel, idx int, p cpa.Provider) int {
 		if existing, ok := byID[id]; ok {
 			sites[existing].Providers[ch] = idx
+			sites[existing].Priorities[ch] = p.Priority
 			if sites[existing].BaseURL == "" {
 				sites[existing].BaseURL = p.BaseURL
 			}
@@ -42,13 +48,16 @@ func BuildSites(snap *cpa.Snapshot) []Site {
 			}
 			return existing
 		}
+		label, group := splitName(name)
 		site := Site{
-			ID:        id,
-			Name:      name,
-			Priority:  p.Priority,
-			BaseURL:   p.BaseURL,
-			Headers:   p.Headers,
-			Providers: map[cpa.Channel]int{ch: idx},
+			ID:         id,
+			Name:       name,
+			Label:      label,
+			Group:      group,
+			Priorities: map[cpa.Channel]int{ch: p.Priority},
+			BaseURL:    p.BaseURL,
+			Headers:    p.Headers,
+			Providers:  map[cpa.Channel]int{ch: idx},
 		}
 		if keys := p.APIKeys(); len(keys) > 0 {
 			site.APIKey = keys[0]
@@ -85,23 +94,28 @@ func BuildSites(snap *cpa.Snapshot) []Site {
 
 	// Pass 2: attach codex/claude entries to a site.
 	//
-	// The site's priority is whatever openai-compatibility says, because that
-	// is the entry the panel writes priorities to. Falling back to a non-zero
-	// value from another channel made a site edited down to 0 in CPA keep
-	// showing its old number, which reads as the panel being stale.
+	// Each channel keeps its own priority: CPA lets one site rank differently
+	// per protocol, so collapsing them onto a single number would silently
+	// overwrite two of the three on the next save.
 	for _, ch := range []cpa.Channel{cpa.ChannelCodex, cpa.ChannelClaude} {
 		for idx, p := range snap.Providers(ch) {
-			if position, ok := resolveSite(p, byURL, byKey, byHost); ok {
+			if position, ok := resolveSite(sites, p, byURL, byKey, byHost); ok {
 				sites[position].Providers[ch] = idx
-				if !sites[position].HasChannel(cpa.ChannelOpenAI) && sites[position].Priority == 0 {
-					sites[position].Priority = p.Priority
-				}
+				sites[position].Priorities[ch] = p.Priority
 				continue
 			}
 			host := hostOf(p.BaseURL)
 			id := "host:" + host
 			if host == "" {
 				id = "url:" + normalizeURL(p.BaseURL)
+			}
+			// One host can serve several groups. Merging them would put two
+			// different accounts in one matrix column, so a colliding id whose
+			// key disagrees gets its own.
+			if existing, taken := byID[id]; taken && !keysAgree(sites[existing], p.APIKeys()) {
+				if keys := p.APIKeys(); len(keys) > 0 {
+					id += " #" + keyFingerprint(keys[0])
+				}
 			}
 			name := strings.TrimSpace(p.Name)
 			if name == "" {
@@ -118,10 +132,12 @@ func BuildSites(snap *cpa.Snapshot) []Site {
 		}
 	}
 
-	// Filter out sites without any API key.
+	// A provider with no api-key can never authenticate; CPA's own UI hides
+	// these, so the panel drops them rather than showing a column that fails
+	// every probe.
 	filtered := make([]Site, 0, len(sites))
 	for _, site := range sites {
-		if site.APIKey != "" {
+		if strings.TrimSpace(site.APIKey) != "" {
 			filtered = append(filtered, site)
 		}
 	}
@@ -130,30 +146,97 @@ func BuildSites(snap *cpa.Snapshot) []Site {
 	return filtered
 }
 
-func resolveSite(p cpa.Provider, byURL, byKey, byHost map[string][]int) (int, bool) {
-	if matches := byURL[normalizeURL(p.BaseURL)]; len(matches) == 1 {
-		return matches[0], true
+// splitName splits CPA's provider name on the "<站点> / <分组>" convention.
+//
+// The group is what distinguishes two entries that share a host, so the matrix
+// shows the site name large and the group as a subtitle instead of repeating
+// the whole string in every column header.
+func splitName(name string) (label, group string) {
+	name = strings.TrimSpace(name)
+	if idx := strings.LastIndex(name, "/"); idx >= 0 {
+		label = strings.TrimSpace(name[:idx])
+		group = strings.TrimSpace(name[idx+1:])
+		if label != "" && group != "" {
+			return label, group
+		}
 	}
-	for _, key := range p.APIKeys() {
+	return name, ""
+}
+
+// resolveSite finds the openai-defined site a codex/claude entry belongs to.
+func resolveSite(sites []Site, p cpa.Provider, byURL, byKey, byHost map[string][]int) (int, bool) {
+	keys := p.APIKeys()
+
+	// A shared key is the only positive evidence of the same account.
+	for _, key := range keys {
 		if matches := byKey[key]; len(matches) == 1 {
 			return matches[0], true
 		}
 	}
+
+	// A shared base-url is circumstantial: accept it only when the keys do not
+	// actively disagree, and never fall through to the weaker host match when
+	// they do — that would just find the same site again.
+	if matches := byURL[normalizeURL(p.BaseURL)]; len(matches) == 1 {
+		if keysAgree(sites[matches[0]], keys) {
+			return matches[0], true
+		}
+		return 0, false
+	}
+
 	if matches := byHost[hostOf(p.BaseURL)]; len(matches) == 1 {
-		return matches[0], true
+		if keysAgree(sites[matches[0]], keys) {
+			return matches[0], true
+		}
 	}
 	return 0, false
 }
 
-// sortSites orders by priority (high first) then name, which is also the
-// left-to-right column order of the matrix page.
+// keysAgree reports whether an entry's keys are compatible with a site's.
+//
+// Either side having no key is not a contradiction — plenty of entries share a
+// host with nothing to compare — but two different non-empty keys mean two
+// different groups.
+func keysAgree(site Site, keys []string) bool {
+	if site.APIKey == "" || len(keys) == 0 {
+		return true
+	}
+	for _, key := range keys {
+		if key == site.APIKey {
+			return true
+		}
+	}
+	return false
+}
+
+// keyFingerprint is a short stable tag for disambiguating ids. The key itself
+// never goes into an id: ids are persisted in the panel's store.
+func keyFingerprint(key string) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return strconv.FormatUint(uint64(h.Sum32()), 36)
+}
+
+// sortSites orders by the site's highest priority across channels (high
+// first), then name — the left-to-right column order of the matrix page.
 func sortSites(sites []Site) {
 	sort.SliceStable(sites, func(i, j int) bool {
-		if sites[i].Priority != sites[j].Priority {
-			return sites[i].Priority > sites[j].Priority
+		pi, pj := topPriority(sites[i].Priorities), topPriority(sites[j].Priorities)
+		if pi != pj {
+			return pi > pj
 		}
 		return strings.ToLower(sites[i].Name) < strings.ToLower(sites[j].Name)
 	})
+}
+
+func topPriority(priorities map[cpa.Channel]int) int {
+	top := 0
+	for _, p := range priorities {
+		if p > top {
+			top = p
+		}
+	}
+	return top
 }
 
 func normalizeURL(raw string) string {

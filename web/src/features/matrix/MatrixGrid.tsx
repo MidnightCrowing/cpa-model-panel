@@ -1,8 +1,8 @@
 import { memo, useState } from 'react'
-import ReactDOMServer from 'react-dom/server'
 import type { EntryRef, Protocol, SiteView } from '../../api/types'
+import { Tooltip } from '../../components/Tooltip'
 import { VirtualList } from '../../components/VirtualList'
-import { refKey } from '../../lib/keys'
+import { refKey, siteChannelKey } from '../../lib/keys'
 import type { StatsIndex } from '../../state/useStats'
 import { SiteMenu, type SiteMenuActions } from './SiteMenu'
 import type { MatrixRow } from './visibility'
@@ -19,6 +19,9 @@ export type MatrixActions = SiteMenuActions & {
 type GridProps = {
   rows: MatrixRow[]
   sites: SiteView[]
+  /** The CPA list this page is showing; priorities are read and written per
+   *  channel, so every site control needs to know which one. */
+  protocol: Protocol
   disabledDraft: Record<string, boolean>
   baseDisabled: Set<string>
   priorityDraft: Record<string, number>
@@ -30,6 +33,7 @@ type GridProps = {
 export function MatrixGrid({
   rows,
   sites,
+  protocol,
   disabledDraft,
   baseDisabled,
   priorityDraft,
@@ -50,33 +54,40 @@ export function MatrixGrid({
       header={
         <div className="matrix-row matrix-head" style={{ width }}>
           <div className="cell cell-name">模型（映射后）</div>
-          {sites.map((site) => (
-            <div className={`cell cell-site ${site.temp ? 'is-temp' : ''}`} key={site.id}>
-              <button
-                type="button"
-                className="site-head"
-                title={siteTitle(site)}
-                onClick={() => setOpenMenu(openMenu === site.id ? null : site.id)}
-              >
-                <span className="site-name">{site.name}</span>
-                <span className="site-head-line">
-                  <span className={`priority-chip ${priorityDraft[site.id] !== undefined ? 'dirty' : ''}`}>
-                    {priorityDraft[site.id] ?? site.priority}
-                  </span>
-                  <SiteHealth site={site} />
-                </span>
-              </button>
-              {openMenu === site.id && (
-                <SiteMenu
-                  site={site}
-                  priority={priorityDraft[site.id] ?? site.priority}
-                  busy={busySite === site.id}
-                  actions={actions}
-                  onClose={() => setOpenMenu(null)}
-                />
-              )}
-            </div>
-          ))}
+          {sites.map((site) => {
+            const draftKey = siteChannelKey(site.id, protocol)
+            const priority = priorityDraft[draftKey] ?? site.priorities[protocol] ?? 0
+            return (
+              <div className={`cell cell-site ${site.temp ? 'is-temp' : ''}`} key={site.id}>
+                <Tooltip content={<SiteTip site={site} protocol={protocol} priority={priority} />}>
+                  <button
+                    type="button"
+                    className="site-head"
+                    onClick={() => setOpenMenu(openMenu === site.id ? null : site.id)}
+                  >
+                    <span className="site-name">{site.label || site.name}</span>
+                    {site.group && <span className="site-group">{site.group}</span>}
+                    <span className="site-head-line">
+                      <span className={`priority-chip ${priorityDraft[draftKey] !== undefined ? 'dirty' : ''}`}>
+                        {priority}
+                      </span>
+                      <SiteHealth site={site} />
+                    </span>
+                  </button>
+                </Tooltip>
+                {openMenu === site.id && (
+                  <SiteMenu
+                    site={site}
+                    protocol={protocol}
+                    priority={priority}
+                    busy={busySite === site.id}
+                    actions={actions}
+                    onClose={() => setOpenMenu(null)}
+                  />
+                )}
+              </div>
+            )
+          })}
         </div>
       }
       renderRow={(row) => (
@@ -94,30 +105,34 @@ export function MatrixGrid({
   )
 }
 
-/** A dot for the last probe: green recently ok, red failing, grey unknown. */
-function SiteHealth({ site }: { site: SiteView }) {
-  if (!site.has_key) return <span className="health-dot is-bad" title="CPA 里没有 api-key" />
-  if (site.failures && site.failures > 0) {
-    return <span className="health-dot is-bad" title={`连续失败 ${site.failures} 次：${site.last_error ?? ''}`} />
-  }
-  if (site.last_ok_at) return <span className="health-dot is-ok" title={`最后成功 ${site.last_ok_at}`} />
-  return <span className="health-dot" title="尚未探测" />
-}
-
 const CHANNEL_LABEL: Record<string, string> = {
   openai: 'openai-compatibility',
   codex: 'codex-api-key',
   claude: 'claude-api-key',
 }
 
-function siteTitle(site: SiteView): string {
-  const lines = [`${site.name}（优先级 ${site.priority}）`, `配置于：${site.channels.map((c) => CHANNEL_LABEL[c] ?? c).join('、')}`]
-  if (!site.channels.includes('openai')) {
-    lines.push('该站点在 CPA 里没有 openai-compatibility 条目，只能按 base-url 找')
-  }
-  if (!site.has_key) lines.push('CPA 配置里 api-key 为空')
-  lines.push('点击展开站点操作')
-  return lines.join('\n')
+/** What the old `title` string said, laid out. */
+function SiteTip({ site, protocol, priority }: { site: SiteView; protocol: Protocol; priority: number }) {
+  return (
+    <>
+      <div className="tooltip-title">{site.name}</div>
+      <div className="tooltip-line">
+        {CHANNEL_LABEL[protocol]} 优先级 {priority}
+      </div>
+      <div className="tooltip-line">
+        配置于 {site.channels.map((channel) => CHANNEL_LABEL[channel] ?? channel).join('、') || '—'}
+      </div>
+      {site.last_error && <div className="tooltip-line">上次探测失败：{site.last_error.slice(0, 80)}</div>}
+      <div className="tooltip-line muted">点击展开站点操作</div>
+    </>
+  )
+}
+
+/** A dot for the last probe: green recently ok, red failing, grey unknown. */
+function SiteHealth({ site }: { site: SiteView }) {
+  if (site.failures && site.failures > 0) return <span className="health-dot is-bad" />
+  if (site.last_ok_at) return <span className="health-dot is-ok" />
+  return <span className="health-dot" />
 }
 
 type RowProps = {
@@ -151,7 +166,6 @@ const MatrixRowView = memo(function MatrixRowView({
   return (
     <div className={`matrix-row ${on === 0 ? 'is-all-off' : ''}`} style={{ width }}>
       <div className="cell cell-name">
-        <ProtocolMark protocols={row.protocols} />
         <span className="mono matrix-name" title={row.name}>
           {row.name}
         </span>
@@ -181,12 +195,13 @@ const MatrixRowView = memo(function MatrixRowView({
         const dirty = refs.some((ref) => disabledDraft[refKey(ref.site, ref.upstream)] !== undefined)
         return (
           <div className={`cell cell-site ${site.temp ? 'is-temp' : ''}`} key={site.id}>
-            <button
-              type="button"
-              className={`toggle ${enabled ? 'is-on' : ''} ${dirty ? 'is-dirty' : ''}`}
-              title={refs.map((ref) => ref.upstream).join('\n')}
-              onClick={() => actions.onToggle(refs, enabled)}
-            />
+            <Tooltip content={<CellTip refs={refs} stats={stats} />}>
+              <button
+                type="button"
+                className={`toggle ${enabled ? 'is-on' : ''} ${dirty ? 'is-dirty' : ''}`}
+                onClick={() => actions.onToggle(refs, enabled)}
+              />
+            </Tooltip>
             <CellStats refs={refs} stats={stats} />
           </div>
         )
@@ -198,92 +213,88 @@ const MatrixRowView = memo(function MatrixRowView({
 /**
  * Request outcomes for the models behind this cell.
  *
- * A cell often stands for several upstream models, and they do not all behave
- * the same, so the summary is the total and the tooltip breaks it down per
- * model.
+ * A cell often stands for several upstream models and they do not all behave
+ * the same, so the badge is the total and the tooltip breaks it down per model.
  */
 function CellStats({ refs, stats }: { refs: EntryRef[]; stats: StatsIndex }) {
   if (!stats.configured) return null
 
+  const { ok, failed } = totals(refs, stats)
+  if (ok === 0 && failed === 0) return null
+
+  const tone = failed === 0 ? 'is-ok' : ok === 0 ? 'is-bad' : 'is-mixed'
+  return (
+    <Tooltip content={<CellTip refs={refs} stats={stats} />} className={`cell-stats ${tone}`}>
+      <span className="cell-stats-ok">{ok}</span>
+      <span className="cell-stats-sep">/</span>
+      <span className="cell-stats-bad">{failed}</span>
+      {refs.length > 1 && <span className="cell-stats-more">▾</span>}
+    </Tooltip>
+  )
+}
+
+/** Model name on the left, its outcome on the right. */
+function CellTip({ refs, stats }: { refs: EntryRef[]; stats: StatsIndex }) {
+  const rows = refs
+    .map((ref) => ({ ref, cell: stats.byModel.get(refKey(ref.site, ref.upstream)) }))
+    .filter((row) => row.cell && (row.cell.ok > 0 || row.cell.failed > 0))
+
+  if (rows.length === 0) {
+    return (
+      <div className="stat-tip">
+        {refs.map((ref) => (
+          <div className="stat-tip-row" key={refKey(ref.site, ref.upstream)}>
+            <span className="stat-tip-name">{ref.upstream}</span>
+            <span className="stat-tip-counts muted">无记录</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  const { ok, failed } = totals(refs, stats)
+  return (
+    <div className="stat-tip">
+      {rows.map(({ ref, cell }) => (
+        <div className="stat-tip-row" key={refKey(ref.site, ref.upstream)}>
+          <span className="stat-tip-name">{ref.upstream}</span>
+          <span className="stat-tip-counts">
+            <span className="stat-tip-ok">{cell!.ok}</span>
+            <span className="stat-tip-sep">/</span>
+            <span className="stat-tip-bad">{cell!.failed}</span>
+            {cell!.latency_ms > 0 && <span className="stat-tip-latency">{cell!.latency_ms}ms</span>}
+          </span>
+        </div>
+      ))}
+      {rows.length > 1 && (
+        <div className="stat-tip-total">
+          <span>合计</span>
+          <span className="stat-tip-counts">
+            <span className="stat-tip-ok">{ok}</span>
+            <span className="stat-tip-sep">/</span>
+            <span className="stat-tip-bad">{failed}</span>
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function totals(refs: EntryRef[], stats: StatsIndex) {
   let ok = 0
   let failed = 0
-  const lines: string[] = []
   for (const ref of refs) {
     const cell = stats.byModel.get(refKey(ref.site, ref.upstream))
     if (!cell) continue
     ok += cell.ok
     failed += cell.failed
-    lines.push(`${ref.upstream}：成功 ${cell.ok} / 失败 ${cell.failed}${cell.latency_ms ? ` · ${cell.latency_ms}ms` : ''}`)
   }
-  if (ok === 0 && failed === 0) return null
-
-  const tone = failed === 0 ? 'is-ok' : ok === 0 ? 'is-bad' : 'is-mixed'
-
-  const tooltipContent = (
-    <div className="cell-stats-tooltip">
-      {refs.map((ref) => {
-        const cell = stats.byModel.get(refKey(ref.site, ref.upstream))
-        if (!cell || (cell.ok === 0 && cell.failed === 0)) return null
-        return (
-          <div key={refKey(ref.site, ref.upstream)} className="cell-stats-tooltip-row">
-            <span className="cell-stats-tooltip-name">{ref.upstream}</span>
-            <span className="cell-stats-tooltip-counts">
-              <span className="cell-stats-tooltip-ok">{cell.ok} 成功</span>
-              {' / '}
-              <span className="cell-stats-tooltip-bad">{cell.failed} 失败</span>
-              {cell.latency_ms ? <span className="cell-stats-tooltip-latency"> · {cell.latency_ms}ms</span> : null}
-            </span>
-          </div>
-        )
-      })}
-    </div>
-  )
-
-  return (
-    <span className={`cell-stats ${tone}`} title={lines.join('\n')} data-tooltip-html={ReactDOMServer.renderToStaticMarkup(tooltipContent)}>
-      <span className="cell-stats-ok">{ok}</span>
-      <span className="cell-stats-sep">/</span>
-      <span className="cell-stats-bad">{failed}</span>
-      {refs.length > 1 && <span className="cell-stats-more">▾</span>}
-    </span>
-  )
+  return { ok, failed }
 }
 
-const PROTOCOL_LABEL: Record<Protocol, string> = {
-  openai: 'OA',
-  codex: 'CX',
-  claude: 'CL',
-}
-
-const PROTOCOL_TARGET: Record<Protocol, string> = {
-  openai: 'openai-compatibility',
-  codex: 'codex-api-key',
-  claude: 'claude-api-key',
-}
-
-function ProtocolMark({ protocols }: { protocols: Protocol[] }) {
-  if (protocols.length === 1) {
-    const protocol = protocols[0]
-    return (
-      <span className={`proto-mark is-${protocol}`} title={`写入 ${PROTOCOL_TARGET[protocol]}`}>
-        {PROTOCOL_LABEL[protocol]}
-      </span>
-    )
-  }
-  return (
-    <span
-      className="proto-mark is-mixed"
-      title={`这一行的模型分属不同协议，会被写进多张表：${protocols.map((p) => PROTOCOL_TARGET[p]).join('、')}`}
-    >
-      混
-    </span>
-  )
-}
-
-function isEnabled(refs: EntryRef[], draft: Record<string, boolean>, base: Set<string>): boolean {
+function isEnabled(refs: EntryRef[], disabledDraft: Record<string, boolean>, baseDisabled: Set<string>): boolean {
   return refs.some((ref) => {
     const key = refKey(ref.site, ref.upstream)
-    const override = draft[key]
-    return override !== undefined ? !override : !base.has(key)
+    return !(disabledDraft[key] ?? baseDisabled.has(key))
   })
 }

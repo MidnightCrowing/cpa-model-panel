@@ -15,7 +15,7 @@
   position: sticky;
   top: 0;
   z-index: 6;
-  height: 54px;
+  height: 68px;
   background: var(--bg-quinary);
   color: var(--text-tertiary);
   font-size: 11px;
@@ -94,7 +94,7 @@
 /* Site names wrap to two lines instead of being cut off — the column header
    is the only place the name appears. */
 .matrix-head .site-name {
-  max-width: 108px;
+  max-width: 104px;
   text-align: center;
   line-height: 1.25;
   display: -webkit-box;
@@ -102,6 +102,22 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   overflow-wrap: anywhere;
+}
+
+/* The group half of "<站点> / <分组>". Two columns on one host usually differ
+   by nothing else, so it has to stay legible. */
+.matrix-head .site-group {
+  max-width: 104px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cell-site.is-absent {
@@ -159,42 +175,6 @@
 .toggle.is-dirty {
   outline: 2px solid var(--warn-color);
   outline-offset: 1px;
-}
-
-/* Row-level protocol mark: which CPA list this row is written to. Visible in
-   the "全部" view, so telling protocols apart never requires switching tabs. */
-.proto-mark {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 16px;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
-  color: var(--text-tertiary);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.proto-mark.is-codex {
-  color: #9ecbff;
-  border-color: rgba(120, 160, 200, 0.5);
-  background: rgba(90, 130, 170, 0.18);
-}
-
-.proto-mark.is-claude {
-  color: #f0b48a;
-  border-color: rgba(200, 140, 90, 0.5);
-  background: rgba(180, 120, 70, 0.18);
-}
-
-.proto-mark.is-mixed {
-  color: var(--warn-badge-text);
-  border-color: var(--warn-badge-border);
-  background: var(--warn-badge-bg);
 }
 
 /* ── Site column header ─────────────────────────────────── */
@@ -283,7 +263,7 @@
 
 .site-menu-title {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   font-weight: 700;
   font-size: 13px;
@@ -291,12 +271,38 @@
 }
 
 .site-menu-name {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   overflow-wrap: anywhere;
 }
 
+.site-menu-group {
+  align-self: flex-start;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Top-right, out of the way of the name it belongs to. */
 .site-menu-refresh {
+  flex: 0 0 auto;
   margin-left: auto;
+}
+
+.icon-spin {
+  animation: icon-spin 0.9s linear infinite;
+}
+
+@keyframes icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .site-menu-meta {
@@ -311,6 +317,7 @@
   overflow-wrap: anywhere;
 }
 
+/* Label left, stepper right. */
 .site-menu-priority {
   display: flex;
   align-items: center;
@@ -320,23 +327,44 @@
   font-size: 12px;
 }
 
-.site-menu-priority-controls {
+.site-menu-priority-label {
   display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-weight: 600;
+}
+
+.site-menu-priority-label .muted {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.site-menu-stepper {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
 }
 
 .site-menu-priority .input {
-  width: 60px;
+  width: 56px;
+  min-height: 24px;
+  padding: 2px 4px;
   text-align: center;
-  padding: 4px 6px;
 }
 
+/* Full-width halves. */
 .site-menu-actions {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
 
+.site-menu-actions .btn {
+  width: 100%;
+}
+
+.site-menu-source,
 .site-menu-delete {
   width: 100%;
 }

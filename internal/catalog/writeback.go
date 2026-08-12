@@ -48,7 +48,7 @@ func ChannelForProtocol(protocol string) cpa.Channel {
 //     models was dropping them here instead.
 //
 // Providers the panel does not know about are copied through untouched.
-func BuildWrite(cat *Catalog, view View, snap *cpa.Snapshot, priorities map[string]int) WriteResult {
+func BuildWrite(cat *Catalog, view View, snap *cpa.Snapshot, priorities map[string]map[string]int) WriteResult {
 	models := make(map[EntryRef]ModelView, len(view.Models))
 	for _, m := range view.Models {
 		models[EntryRef{Site: m.Site, Upstream: m.Upstream}] = m
@@ -154,7 +154,7 @@ func BuildWrite(cat *Catalog, view View, snap *cpa.Snapshot, priorities map[stri
 	for _, ch := range cpa.AllChannels {
 		source := snap.Providers(ch)
 		for providerIdx := range next[ch] {
-			siteID, known := owner[ch][providerIdx]
+			_, known := owner[ch][providerIdx]
 			isNew := providerIdx >= len(source)
 			if !known && !isNew {
 				continue
@@ -174,11 +174,21 @@ func BuildWrite(cat *Catalog, view View, snap *cpa.Snapshot, priorities map[stri
 				result.Removed += len(source[providerIdx].Models) - countPresent(source[providerIdx].Models, written)
 			}
 			next[ch][providerIdx].Models = written
+		}
 
-			if priority, ok := priorities[siteID]; ok {
-				next[ch][providerIdx].Priority = priority
+		// Apply priorities after all models are placed
+		for providerIdx := range next[ch] {
+			siteID, known := owner[ch][providerIdx]
+			if !known {
+				continue
+			}
+			if channelPrios, ok := priorities[siteID]; ok {
+				if priority, ok := channelPrios[string(ch)]; ok {
+					next[ch][providerIdx].Priority = priority
+				}
 			}
 		}
+
 		result.Channels[ch] = next[ch]
 		result.Changed[ch] = !samePayload(source, next[ch])
 	}
