@@ -83,12 +83,11 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	// big change is produced by the same code that will apply it.
 	if r.URL.Query().Get("dry") == "1" {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"ok":        true,
-			"dry":       true,
-			"diff":      catalog.Diff(st.Snapshot, write),
-			"conflicts": view.Conflicts,
-			"moved":     write.Moved,
-			"created":   write.Created,
+			"ok":      true,
+			"dry":     true,
+			"diff":    catalog.Diff(st.Snapshot, write),
+			"moved":   write.Moved,
+			"created": write.Created,
 		})
 		return
 	}

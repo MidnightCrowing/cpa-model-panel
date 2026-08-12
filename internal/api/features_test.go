@@ -2,12 +2,9 @@ package api
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/local/cpa-model-panel/internal/catalog"
 )
 
 // Shared keys usually arrive base64-wrapped, but not always.
@@ -42,42 +39,6 @@ func TestNormalizeEggURL(t *testing.T) {
 	}
 	if _, err := normalizeEggURL(""); err == nil {
 		t.Error("empty URL should fail")
-	}
-}
-
-// Two upstream models at one site written under the same name is a real
-// misconfiguration; the panel should say so rather than silently pick one.
-func TestConflictsAreReported(t *testing.T) {
-	fake := newFakeCPA(t)
-	server := newTestServer(t, fake)
-
-	view := decodeView(t, call(t, server, http.MethodGet, "/api/catalog", "").Body.String())
-	body := `{"fingerprint":"` + view.Fingerprint + `","ops":[
-		{"type":"rename","to":"same-name","targets":[
-			{"site":"site-a","upstream":"deepseek-ai/DeepSeek-V3"},
-			{"site":"site-a","upstream":"old-model"}
-		]}
-	]}`
-	res := call(t, server, http.MethodPost, "/api/save?dry=1", body)
-	if res.Code != http.StatusOK {
-		t.Fatalf("preview = %d: %s", res.Code, res.Body.String())
-	}
-	var payload struct {
-		Dry       bool                  `json:"dry"`
-		Conflicts []catalog.Conflict    `json:"conflicts"`
-		Diff      []catalog.ChannelDiff `json:"diff"`
-	}
-	if err := json.Unmarshal(res.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if len(payload.Conflicts) != 1 {
-		t.Fatalf("conflicts = %+v, want 1", payload.Conflicts)
-	}
-	if len(payload.Conflicts[0].Upstreams) != 2 {
-		t.Errorf("conflict should name both models: %+v", payload.Conflicts[0])
-	}
-	if len(fake.writes()) != 0 {
-		t.Fatalf("a preview wrote to CPA: %v", fake.writes())
 	}
 }
 

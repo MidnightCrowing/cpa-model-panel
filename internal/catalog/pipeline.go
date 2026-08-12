@@ -130,16 +130,6 @@ type Stats struct {
 	ToMove int `json:"to_move"`
 }
 
-// Conflict is two different upstream models at one site that would be written
-// under the same name into the same CPA list. CPA keeps both, and which one
-// answers is anybody's guess, so it is worth showing before a save.
-type Conflict struct {
-	Site      string   `json:"site"`
-	Name      string   `json:"name"`
-	Channel   string   `json:"channel"`
-	Upstreams []string `json:"upstreams"`
-}
-
 type View struct {
 	Fingerprint string      `json:"fingerprint"`
 	FetchedAt   string      `json:"fetched_at"`
@@ -147,7 +137,6 @@ type View struct {
 	Models      []ModelView `json:"models"`
 	Stats       Stats       `json:"stats"`
 	Settings    Settings    `json:"settings"`
-	Conflicts   []Conflict  `json:"conflicts,omitempty"`
 }
 
 // Compute runs the whole pipeline:
@@ -279,8 +268,6 @@ func Compute(in Inputs) (View, error) {
 		view.Models = append(view.Models, model)
 	}
 
-	view.Conflicts = findConflicts(view.Models)
-
 	for _, site := range in.Catalog.Sites() {
 		channels := make([]string, 0, len(site.Providers))
 		for _, ch := range cpa.AllChannels {
@@ -319,40 +306,6 @@ func misplaced(entry *Entry, target string) bool {
 		return true
 	}
 	return string(entry.Occurrences[0].Channel) != target
-}
-
-// findConflicts groups the models that will be written by where they land and
-// what they will be called there.
-func findConflicts(models []ModelView) []Conflict {
-	type key struct{ site, channel, name string }
-	groups := map[key][]string{}
-	for _, m := range models {
-		if m.Excluded != "" || m.Disabled {
-			continue
-		}
-		name := m.Alias
-		if name == "" {
-			name = m.Upstream
-		}
-		k := key{site: m.Site, channel: m.Target, name: name}
-		groups[k] = append(groups[k], m.Upstream)
-	}
-
-	out := make([]Conflict, 0)
-	for k, upstreams := range groups {
-		if len(upstreams) < 2 {
-			continue
-		}
-		sort.Strings(upstreams)
-		out = append(out, Conflict{Site: k.site, Name: k.name, Channel: k.channel, Upstreams: upstreams})
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Site != out[j].Site {
-			return out[i].Site < out[j].Site
-		}
-		return out[i].Name < out[j].Name
-	})
-	return out
 }
 
 func sortEntries(entries []Entry) {

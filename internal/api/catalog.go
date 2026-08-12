@@ -143,10 +143,31 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	wg.Wait()
 
+	// A provider CPA holds with an empty api-key can never authenticate, so it
+	// is swept up here rather than left for the user to find — its own UI does
+	// not even show these.
+	swept, sweepErr := s.sweepKeylessSites(st)
+	if sweepErr != nil {
+		send(map[string]any{"type": "done", "error": "清理无密钥站点失败: " + sweepErr.Error()})
+		return
+	}
+	if len(swept) > 0 {
+		reloaded, err := s.load()
+		if err != nil {
+			send(map[string]any{"type": "done", "error": err.Error()})
+			return
+		}
+		st = reloaded
+	}
+
 	failures := make([]refreshFailure, 0)
 	added := 0
 	refreshed := 0
 	for _, result := range results {
+		if result.site.APIKey == "" {
+			// Removed above; reporting it as a failure would be noise.
+			continue
+		}
 		_ = s.Store.RecordProbe(result.site.ID, result.err)
 		if result.err != nil {
 			failures = append(failures, refreshFailure{
@@ -189,6 +210,61 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		"refreshed": refreshed,
 		"added":     added,
 		"failed":    failures,
+		"swept":     swept,
 		"view":      view,
 	})
+}
+
+// sweepKeylessSites deletes every provider entry CPA holds without an API key.
+//
+// They cannot work — CPA has nothing to authenticate with — and CPA's own
+// management UI hides them, so they accumulate invisibly and fail every probe.
+// A snapshot is written first, as with any other removal.
+func (s *Server) sweepKeylessSites(st *state) ([]string, error) {
+	victims := make([]catalog.Site, 0)
+	for _, site := range st.Catalog.Sites() {
+		if strings.TrimSpace(site.APIKey) == "" {
+			victims = append(victims, site)
+		}
+	}
+	if len(victims) == 0 {
+		return nil, nil
+	}
+
+	if _, err := s.Store.AddSnapshot(st.View.Fingerprint, "pre-keyless-sweep", snapshotPayload(st.Snapshot)); err != nil {
+		return nil, err
+	}
+	_ = s.Store.PruneSnapshots(s.Retain)
+
+	drop := make(map[cpa.Channel]map[int]bool, len(cpa.AllChannels))
+	for _, ch := range cpa.AllChannels {
+		drop[ch] = map[int]bool{}
+	}
+	names := make([]string, 0, len(victims))
+	for _, site := range victims {
+		names = append(names, site.Name)
+		for ch, idx := range site.Providers {
+			drop[ch][idx] = true
+		}
+	}
+
+	for _, ch := range cpa.AllChannels {
+		if len(drop[ch]) == 0 {
+			continue
+		}
+		providers := st.Snapshot.Providers(ch)
+		next := make([]cpa.Provider, 0, len(providers))
+		for i, provider := range providers {
+			if !drop[ch][i] {
+				next = append(next, provider)
+			}
+		}
+		if err := s.CPA.PutChannel(ch, next); err != nil {
+			return nil, err
+		}
+	}
+	for _, site := range victims {
+		_ = s.Store.ForgetSite(site.ID)
+	}
+	return names, nil
 }
