@@ -13,6 +13,7 @@ import (
 // Exclusion reasons, in precedence order.
 const (
 	ExcludedManual    = "manual"
+	ExcludedGone      = "gone"
 	ExcludedWhitelist = "whitelist"
 	ExcludedVersion   = "version"
 )
@@ -237,6 +238,12 @@ func Compute(in Inputs) (View, error) {
 			model.Excluded = ExcludedManual
 		case model.Kept:
 			// Explicitly kept: rules do not apply.
+		case entry.Gone:
+			// The site's own model list stopped offering it. This outranks the
+			// name-based rules: whether it matches the whitelist is moot once
+			// the upstream 404s.
+			model.Excluded = ExcludedGone
+			model.Reason = "站点已不再提供"
 		case whitelist != nil && !whitelist.MatchString(entry.Upstream):
 			// Whitelist matches the *original* upstream name only.
 			model.Excluded = ExcludedWhitelist

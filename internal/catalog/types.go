@@ -40,6 +40,11 @@ type Entry struct {
 	// otherwise, and Prune has to keep the first and drop the second.
 	Withheld bool `json:"withheld,omitempty"`
 
+	// Gone records that the site's own model list no longer offers this model,
+	// as of its last successful probe. CPA would still route to it and get a
+	// 404, so it is excluded until the site serves it again.
+	Gone bool `json:"gone,omitempty"`
+
 	Occurrences []Occurrence `json:"occurrences"`
 }
 

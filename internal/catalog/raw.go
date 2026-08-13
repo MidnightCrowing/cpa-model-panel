@@ -90,9 +90,18 @@ func Reconcile(cached *Catalog, snap *cpa.Snapshot) *Catalog {
 	return out
 }
 
-// MergeDiscovered folds a site's upstream model list into the catalog. Models
-// already known are left untouched (their alias and extra fields survive);
-// genuinely new ones are added as pending entries that the next save writes.
+// MergeDiscovered reconciles a site's upstream model list with the catalog.
+//
+// Models already known are left untouched (their alias and extra fields
+// survive); genuinely new ones are added as pending entries that the next save
+// writes. Models the site no longer offers are marked Gone, which excludes
+// them and takes them out of CPA on the next save — CPA would otherwise keep
+// routing to a model the upstream answers 404 for.
+//
+// Only call this for a probe that succeeded: a failed probe says nothing about
+// what the site serves. An empty list is treated the same way, as no
+// information rather than "everything is gone" — a site answering 200 with
+// nothing is far more likely to be broken than genuinely empty.
 //
 // A new model lands in the channel its protocol suggests when the site has
 // that channel configured, otherwise openai-compatibility, otherwise whatever
@@ -102,6 +111,25 @@ func MergeDiscovered(cat *Catalog, siteID string, names []string, matcher *clean
 	if site == nil {
 		return 0
 	}
+
+	upstream := make(map[string]bool, len(names))
+	for _, name := range names {
+		upstream[name] = true
+	}
+	if len(upstream) > 0 {
+		for i := range cat.Entries {
+			if cat.Entries[i].Site != siteID {
+				continue
+			}
+			gone := !upstream[cat.Entries[i].Upstream]
+			cat.Entries[i].Gone = gone
+			if gone {
+				// It cannot be waiting to be written if it no longer exists.
+				cat.Entries[i].Pending = false
+			}
+		}
+	}
+
 	index := cat.entryIndex()
 	added := 0
 	for _, name := range names {

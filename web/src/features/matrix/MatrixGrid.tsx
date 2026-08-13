@@ -262,7 +262,7 @@ function CellTip({ refs, stats }: { refs: EntryRef[]; stats: StatsIndex }) {
             <span className="stat-tip-ok">{cell!.ok}</span>
             <span className="stat-tip-sep">/</span>
             <span className="stat-tip-bad">{cell!.failed}</span>
-            {cell!.latency_ms > 0 && <span className="stat-tip-latency">{cell!.latency_ms}ms</span>}
+            {cell!.latency_ms > 0 && <span className="stat-tip-latency">{formatLatency(cell!.latency_ms)}</span>}
           </span>
         </div>
       ))}
@@ -280,8 +280,26 @@ function CellTip({ refs, stats }: { refs: EntryRef[]; stats: StatsIndex }) {
   )
 }
 
-function totals(refs: EntryRef[], stats: StatsIndex) {
-  let ok = 0
+/**
+ * Latency in the largest unit that stays readable.
+ *
+ * These are averages over a day and a slow model can average tens of seconds,
+ * where a raw millisecond count (40745ms) is something you have to stop and
+ * count digits on.
+ */
+function formatLatency(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  if (ms < 60_000) return `${trimZero((ms / 1000).toFixed(1))}s`
+  const minutes = Math.floor(ms / 60_000)
+  const seconds = Math.round((ms % 60_000) / 1000)
+  return seconds === 0 ? `${minutes}m` : `${minutes}m${seconds}s`
+}
+
+function trimZero(value: string): string {
+  return value.endsWith('.0') ? value.slice(0, -2) : value
+}
+
+function totals(refs: EntryRef[], stats: StatsIndex) {  let ok = 0
   let failed = 0
   for (const ref of refs) {
     const cell = stats.byModel.get(refKey(ref.site, ref.upstream))

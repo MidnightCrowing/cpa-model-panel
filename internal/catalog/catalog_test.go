@@ -326,7 +326,9 @@ func TestDiscoveredModelsLandInTheProtocolChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRules: %v", err)
 	}
-	added := MergeDiscovered(cat, "示例站点 / office", []string{"gpt-6", "claude-opus-9", "llama-4"}, matcher, rules)
+	// qwen-max is what the site already serves; listing it keeps this test
+	// about where *new* models land.
+	added := MergeDiscovered(cat, "示例站点 / office", []string{"qwen-max", "gpt-6", "claude-opus-9", "llama-4"}, matcher, rules)
 	if added != 3 {
 		t.Fatalf("added = %d, want 3", added)
 	}
@@ -681,5 +683,132 @@ func TestNameSplitsIntoSiteAndGroup(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("示例站点 / free is missing")
+	}
+}
+
+func discoveryTools(t *testing.T) (*clean.ProtocolMatcher, clean.Rules) {
+	t.Helper()
+	matcher, err := clean.NewProtocolMatcher(clean.DefaultProtocolConfig())
+	if err != nil {
+		t.Fatalf("matcher: %v", err)
+	}
+	rules, err := clean.NewRules(clean.RulesConfig{})
+	if err != nil {
+		t.Fatalf("NewRules: %v", err)
+	}
+	return matcher, rules
+}
+
+func modelIn(view View, site, upstream string) (ModelView, bool) {
+	for _, m := range view.Models {
+		if m.Site == site && m.Upstream == upstream {
+			return m, true
+		}
+	}
+	return ModelView{}, false
+}
+
+// A model the site stopped serving has to leave CPA too: CPA would keep
+// routing to it and take a 404 from the upstream.
+func TestModelGoneUpstreamLeavesCPA(t *testing.T) {
+	snap := fixture()
+	cat := Reconcile(nil, snap)
+	matcher, rules := discoveryTools(t)
+
+	// office serves qwen-max today; this probe no longer lists it.
+	MergeDiscovered(cat, "示例站点 / office", []string{"gpt-6"}, matcher, rules)
+
+	view := compute(t, cat, defaultSettings(), RefSet{}, RefSet{})
+	model, ok := modelIn(view, "示例站点 / office", "qwen-max")
+	if !ok {
+		t.Fatal("qwen-max vanished from the view instead of being marked")
+	}
+	if model.Excluded != ExcludedGone {
+		t.Fatalf("excluded = %q, want %q", model.Excluded, ExcludedGone)
+	}
+	if view.Stats.ToRemove == 0 {
+		t.Fatal("the save should be reported as having something to remove")
+	}
+
+	write := BuildWrite(cat, view, snap, nil)
+	if contains(payloadJSON(t, write.Channels[cpa.ChannelOpenAI]), "qwen-max") {
+		t.Fatal("a model the site no longer serves was written back to CPA")
+	}
+}
+
+// Marking is reversible, like every other filter: the catalog copy survives a
+// prune, so a model the site serves again comes straight back.
+func TestGoneModelComesBackWhenServedAgain(t *testing.T) {
+	cat := Reconcile(nil, fixture())
+	matcher, rules := discoveryTools(t)
+
+	MergeDiscovered(cat, "示例站点 / office", []string{"gpt-6"}, matcher, rules)
+	Prune(cat, compute(t, cat, defaultSettings(), RefSet{}, RefSet{}))
+
+	MergeDiscovered(cat, "示例站点 / office", []string{"gpt-6", "qwen-max"}, matcher, rules)
+	model, ok := modelIn(compute(t, cat, defaultSettings(), RefSet{}, RefSet{}), "示例站点 / office", "qwen-max")
+	if !ok {
+		t.Fatal("qwen-max was pruned away and could not come back")
+	}
+	if model.Excluded != "" {
+		t.Fatalf("still excluded as %q after the site served it again", model.Excluded)
+	}
+}
+
+// An empty answer is far more likely to be a broken endpoint than a site that
+// genuinely serves nothing, so it must not empty the site.
+func TestEmptyDiscoveryMarksNothingGone(t *testing.T) {
+	cat := Reconcile(nil, fixture())
+	matcher, rules := discoveryTools(t)
+
+	MergeDiscovered(cat, "示例站点 / office", nil, matcher, rules)
+
+	model, ok := modelIn(compute(t, cat, defaultSettings(), RefSet{}, RefSet{}), "示例站点 / office", "qwen-max")
+	if !ok {
+		t.Fatal("qwen-max disappeared")
+	}
+	if model.Excluded != "" {
+		t.Fatalf("an empty probe excluded it as %q", model.Excluded)
+	}
+}
+
+// One site's probe says nothing about any other site's models.
+func TestDiscoveryOnlyTouchesItsOwnSite(t *testing.T) {
+	cat := Reconcile(nil, fixture())
+	matcher, rules := discoveryTools(t)
+
+	MergeDiscovered(cat, "示例站点 / office", []string{"gpt-6"}, matcher, rules)
+
+	view := compute(t, cat, defaultSettings(), RefSet{}, RefSet{})
+	for _, upstream := range []string{"deepseek-ai/DeepSeek-V3", "[free]glm-4.5"} {
+		model, ok := modelIn(view, "示例站点 / free", upstream)
+		if !ok {
+			t.Fatalf("%s disappeared", upstream)
+		}
+		if model.Excluded == ExcludedGone {
+			t.Fatalf("%s belongs to another site and was marked gone", upstream)
+		}
+	}
+}
+
+// An explicit keep outranks it, same as it does the whitelist and version
+// rules — the site's list is not always the whole truth.
+func TestKeepOverridesGone(t *testing.T) {
+	cat := Reconcile(nil, fixture())
+	matcher, rules := discoveryTools(t)
+
+	MergeDiscovered(cat, "示例站点 / office", []string{"gpt-6"}, matcher, rules)
+
+	keeps := RefSet{{Site: "示例站点 / office", Upstream: "qwen-max"}: true}
+	view, err := Compute(Inputs{Catalog: cat, Settings: defaultSettings(), Keeps: keeps})
+	if err != nil {
+		t.Fatalf("Compute: %v", err)
+	}
+	model, ok := modelIn(view, "示例站点 / office", "qwen-max")
+	if !ok {
+		t.Fatal("qwen-max disappeared")
+	}
+	if model.Excluded != "" {
+		t.Fatalf("kept model was still excluded as %q", model.Excluded)
 	}
 }

@@ -5,6 +5,7 @@ import type { NamingRow as RowData } from './grouping'
 
 const EXCLUDED_LABEL: Record<string, string> = {
   manual: '已手动删除',
+  gone: '站点已下架',
   whitelist: '白名单未匹配',
   version: '版本淘汰',
 }

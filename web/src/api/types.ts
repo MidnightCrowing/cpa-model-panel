@@ -1,6 +1,6 @@
 export type Protocol = 'openai' | 'codex' | 'claude'
 export type Channel = Protocol
-export type ExcludedReason = 'manual' | 'whitelist' | 'version'
+export type ExcludedReason = 'manual' | 'gone' | 'whitelist' | 'version'
 
 /** One (site, upstream model) pair — the unit every edit addresses. */
 export type EntryRef = {
