@@ -13,7 +13,6 @@ import (
 // Exclusion reasons, in precedence order.
 const (
 	ExcludedManual    = "manual"
-	ExcludedGone      = "gone"
 	ExcludedWhitelist = "whitelist"
 	ExcludedVersion   = "version"
 )
@@ -183,6 +182,17 @@ func Compute(in Inputs) (View, error) {
 
 	for i := range in.Catalog.Entries {
 		entry := &in.Catalog.Entries[i]
+
+		// A tombstone is not a model any more: the site stopped serving it, so
+		// it leaves the panel outright. It still has to be counted while CPA
+		// holds it, because the next save is what actually removes it.
+		if entry.Gone {
+			if entry.Present {
+				view.Stats.ToRemove++
+			}
+			continue
+		}
+
 		alias := entry.Alias()
 		effective := alias
 		if effective == "" {
@@ -238,12 +248,6 @@ func Compute(in Inputs) (View, error) {
 			model.Excluded = ExcludedManual
 		case model.Kept:
 			// Explicitly kept: rules do not apply.
-		case entry.Gone:
-			// The site's own model list stopped offering it. This outranks the
-			// name-based rules: whether it matches the whitelist is moot once
-			// the upstream 404s.
-			model.Excluded = ExcludedGone
-			model.Reason = "站点已不再提供"
 		case whitelist != nil && !whitelist.MatchString(entry.Upstream):
 			// Whitelist matches the *original* upstream name only.
 			model.Excluded = ExcludedWhitelist

@@ -116,6 +116,15 @@ func BuildWrite(cat *Catalog, view View, snap *cpa.Snapshot, priorities map[stri
 		ref := EntryRef{Site: entry.Site, Upstream: entry.Upstream}
 		info := models[ref]
 
+		// A tombstone is left out and stays out: Withheld is what makes a
+		// removal restorable, and a model the site no longer serves has
+		// nothing to restore. Once this write lands it is not in CPA either,
+		// and the next prune drops the entry for good.
+		if entry.Gone {
+			entry.Withheld = false
+			continue
+		}
+
 		// Record whether this write leaves the model out, so a later reconcile
 		// can tell the panel's own removals from CPA-side deletions.
 		entry.Withheld = info.Excluded != "" || info.Disabled

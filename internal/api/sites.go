@@ -81,7 +81,7 @@ func (s *Server) refreshSite(w http.ResponseWriter, siteID string) {
 		return
 	}
 
-	added := catalog.MergeDiscovered(st.Catalog, siteID, names, matcher, rules)
+	added, dropped := catalog.MergeDiscovered(st.Catalog, siteID, names, matcher, rules)
 	view, err := s.compute(st.base, st.Settings)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
@@ -89,7 +89,7 @@ func (s *Server) refreshSite(w http.ResponseWriter, siteID string) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok": true, "site": siteID, "found": len(names), "added": added, "view": view,
+		"ok": true, "site": siteID, "found": len(names), "added": added, "dropped": dropped, "view": view,
 	})
 }
 

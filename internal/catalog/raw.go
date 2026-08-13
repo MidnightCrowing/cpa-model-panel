@@ -30,6 +30,17 @@ func Reconcile(cached *Catalog, snap *cpa.Snapshot) *Catalog {
 		out.FetchedAt = cached.FetchedAt
 	}
 
+	// Tombstones are the one thing a live entry has to carry over from the
+	// cache; everything else about a model CPA holds comes from CPA.
+	cachedGone := map[EntryRef]bool{}
+	if cached != nil {
+		for _, entry := range cached.Entries {
+			if entry.Gone {
+				cachedGone[EntryRef{Site: entry.Site, Upstream: entry.Upstream}] = true
+			}
+		}
+	}
+
 	index := make(map[EntryRef]int)
 	for _, ch := range cpa.AllChannels {
 		for providerIdx, provider := range snap.Providers(ch) {
@@ -45,6 +56,10 @@ func Reconcile(cached *Catalog, snap *cpa.Snapshot) *Catalog {
 						Site:     siteID,
 						Upstream: model.Name,
 						Present:  true,
+						// A tombstone outlives a reload: CPA still holds the
+						// model until the next save, so rebuilding the entry
+						// from the snapshot would forget it was delisted.
+						Gone: cachedGone[ref],
 					})
 					position = len(out.Entries) - 1
 					index[ref] = position
@@ -90,26 +105,30 @@ func Reconcile(cached *Catalog, snap *cpa.Snapshot) *Catalog {
 	return out
 }
 
-// MergeDiscovered reconciles a site's upstream model list with the catalog.
+// MergeDiscovered reconciles a site's upstream model list with the catalog and
+// reports how many models it added and how many the site has dropped.
 //
-// Models already known are left untouched (their alias and extra fields
-// survive); genuinely new ones are added as pending entries that the next save
-// writes. Models the site no longer offers are marked Gone, which excludes
-// them and takes them out of CPA on the next save — CPA would otherwise keep
-// routing to a model the upstream answers 404 for.
+// The freshly fetched list is the truth. Names the catalog does not have are
+// added as pending entries the next save writes; names the catalog has and the
+// site no longer serves are tombstoned — they vanish from the panel and the
+// next save takes them out of CPA, the mirror image of a pending addition.
+// Upstreams are unstable and plenty of models are offered only briefly, so
+// there is nothing to restore and no state to keep: a site serving one again
+// rediscovers it as new.
 //
 // Only call this for a probe that succeeded: a failed probe says nothing about
 // what the site serves. An empty list is treated the same way, as no
-// information rather than "everything is gone" — a site answering 200 with
-// nothing is far more likely to be broken than genuinely empty.
+// information rather than "everything is gone" — a site answering 200 with no
+// models is far more likely to be broken than genuinely empty, and one flaky
+// response would otherwise empty the whole site.
 //
 // A new model lands in the channel its protocol suggests when the site has
 // that channel configured, otherwise openai-compatibility, otherwise whatever
 // single channel the site does have.
-func MergeDiscovered(cat *Catalog, siteID string, names []string, matcher *clean.ProtocolMatcher, rules clean.Rules) int {
+func MergeDiscovered(cat *Catalog, siteID string, names []string, matcher *clean.ProtocolMatcher, rules clean.Rules) (added, dropped int) {
 	site := cat.Site(siteID)
 	if site == nil {
-		return 0
+		return 0, 0
 	}
 
 	upstream := make(map[string]bool, len(names))
@@ -118,20 +137,23 @@ func MergeDiscovered(cat *Catalog, siteID string, names []string, matcher *clean
 	}
 	if len(upstream) > 0 {
 		for i := range cat.Entries {
-			if cat.Entries[i].Site != siteID {
+			entry := &cat.Entries[i]
+			if entry.Site != siteID {
 				continue
 			}
-			gone := !upstream[cat.Entries[i].Upstream]
-			cat.Entries[i].Gone = gone
+			gone := !upstream[entry.Upstream]
+			if gone && !entry.Gone {
+				dropped++
+			}
+			entry.Gone = gone
 			if gone {
 				// It cannot be waiting to be written if it no longer exists.
-				cat.Entries[i].Pending = false
+				entry.Pending = false
 			}
 		}
 	}
 
 	index := cat.entryIndex()
-	added := 0
 	for _, name := range names {
 		ref := EntryRef{Site: siteID, Upstream: name}
 		if _, exists := index[ref]; exists {
@@ -158,7 +180,7 @@ func MergeDiscovered(cat *Catalog, siteID string, names []string, matcher *clean
 	if added > 0 {
 		sortEntries(cat.Entries)
 	}
-	return added
+	return added, dropped
 }
 
 func targetChannel(site Site, protocol string) cpa.Channel {

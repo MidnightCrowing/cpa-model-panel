@@ -130,7 +130,7 @@ export function MatrixPage({ view, draft, dispatch, onView }: Props) {
         void refreshSite(site.id)
           .then((result) => {
             onView(result.view)
-            push('ok', `${site.name}：拉到 ${result.found} 个模型，新增 ${result.added} 个`)
+            push('ok', `${site.name}：拉到 ${result.found} 个模型，新增 ${result.added} 个，删除 ${result.dropped} 个`)
           })
           .catch((error) => push('error', `${site.name}：${(error as Error).message}`, { sticky: true }))
           .finally(() => setBusySite(null))

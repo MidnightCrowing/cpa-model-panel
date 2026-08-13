@@ -56,7 +56,7 @@ export function fetchStats(range = '24h') {
 }
 
 export function refreshSite(site: string) {
-  return request<{ ok: boolean; site: string; found: number; added: number; view: View }>(
+  return request<{ ok: boolean; site: string; found: number; added: number; dropped: number; view: View }>(
     `/api/sites/${encodeURIComponent(site)}/refresh`,
     { method: 'POST' },
   )

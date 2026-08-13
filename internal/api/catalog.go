@@ -162,6 +162,7 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 
 	failures := make([]refreshFailure, 0)
 	added := 0
+	dropped := 0
 	refreshed := 0
 	for _, result := range results {
 		if result.site.APIKey == "" {
@@ -178,7 +179,9 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		refreshed++
-		added += catalog.MergeDiscovered(st.Catalog, result.site.ID, result.names, matcher, rules)
+		siteAdded, siteDropped := catalog.MergeDiscovered(st.Catalog, result.site.ID, result.names, matcher, rules)
+		added += siteAdded
+		dropped += siteDropped
 	}
 
 	st.Catalog.FetchedAt = time.Now().UTC().Format(time.RFC3339)
@@ -209,6 +212,7 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		"ok":        true,
 		"refreshed": refreshed,
 		"added":     added,
+		"dropped":   dropped,
 		"failed":    failures,
 		"swept":     swept,
 		"view":      view,

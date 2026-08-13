@@ -40,9 +40,11 @@ type Entry struct {
 	// otherwise, and Prune has to keep the first and drop the second.
 	Withheld bool `json:"withheld,omitempty"`
 
-	// Gone records that the site's own model list no longer offers this model,
-	// as of its last successful probe. CPA would still route to it and get a
-	// 404, so it is excluded until the site serves it again.
+	// Gone marks a model the site's last successful probe no longer listed.
+	// Upstreams come and go, so it is not a state to be restored from: the
+	// entry is a tombstone that hides the model, takes it out of CPA on the
+	// next save, and is dropped once that save lands. A site serving it again
+	// simply rediscovers it as new.
 	Gone bool `json:"gone,omitempty"`
 
 	Occurrences []Occurrence `json:"occurrences"`

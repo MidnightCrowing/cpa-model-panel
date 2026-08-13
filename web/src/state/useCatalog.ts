@@ -155,8 +155,12 @@ export function useCatalog(enabled: boolean, onUnauthorized: () => void) {
       setView(result.view)
       dispatch({ kind: 'reset' })
 
-      const detail: string[] = [`成功拉取 ${result.refreshed} 个站点，新增 ${result.added} 个模型`]
-      if (result.added > 0) detail.push('新模型标记为「待写入」，点「保存到 CPA」后才会写入')
+      const detail: string[] = [
+        `成功拉取 ${result.refreshed} 个站点，新增 ${result.added} 个模型，删除 ${result.dropped ?? 0} 个模型`,
+      ]
+      if (result.added > 0 || (result.dropped ?? 0) > 0) {
+        detail.push('新增标记为「待写入」，删除的已从列表移除，都要点「保存到 CPA」才会生效')
+      }
       for (const failure of result.failed) detail.push(`✕ ${failure.name}：${failure.error}`)
       if (result.failed.length > 0) detail.push('失败的站点保留原有模型列表，不会被清空')
       push(result.failed.length > 0 ? 'info' : 'ok', '站点模型刷新完成', { detail, sticky: true })

@@ -1,6 +1,6 @@
 export type Protocol = 'openai' | 'codex' | 'claude'
 export type Channel = Protocol
-export type ExcludedReason = 'manual' | 'gone' | 'whitelist' | 'version'
+export type ExcludedReason = 'manual' | 'whitelist' | 'version'
 
 /** One (site, upstream model) pair — the unit every edit addresses. */
 export type EntryRef = {
@@ -194,6 +194,8 @@ export type RefreshResult = {
   ok: boolean
   refreshed: number
   added: number
+  /** Models the sites have stopped serving; removed from CPA on the next save. */
+  dropped: number
   failed: RefreshFailure[]
   view: View
 }
