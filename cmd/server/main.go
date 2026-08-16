@@ -34,6 +34,8 @@ func main() {
 		Keeper:     keeper.NewClient(cfg.KeeperURL, cfg.KeeperPassword),
 		Retain:     cfg.SnapshotRetain,
 	}
+	srv.StartAutoSync()
+	defer srv.StopAutoSync()
 
 	mux := http.NewServeMux()
 	srv.Routes(mux)

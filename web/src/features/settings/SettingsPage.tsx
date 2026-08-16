@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchSettings, putSettings } from '../../api/catalog'
 import type { Settings, View } from '../../api/types'
 import { useToasts } from '../../state/useToasts'
+import { AutoSyncCard } from './AutoSyncCard'
 import { CleanRulesCard } from './CleanRulesCard'
 import { ProtocolRegexCard } from './ProtocolRegexCard'
 import { SnapshotsCard } from './SnapshotsCard'
@@ -59,6 +60,7 @@ export function SettingsPage({ view, onView }: Props) {
 
   return (
     <div className="settings-scroll">
+      <AutoSyncCard />
       <CleanRulesCard {...shared} />
       <WhitelistCard {...shared} view={view} />
       <VersionFilterCard {...shared} view={view} />

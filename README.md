@@ -38,8 +38,8 @@ internal/
   catalog/      核心：types · site（站点归并）· raw（协调缓存）· pipeline（过滤管线）
                 · ops（草稿操作）· writeback（写回）· fingerprint（乐观锁）
   clean/        clean（前后缀）· version（版本淘汰）· protocol（协议标记）
-  store/        SQLite：settings · catalog 缓存 · refsets（排除/停用/强制保留）· snapshots · legacy 迁移
-  api/          server · catalog · save · settings · snapshots
+  store/        SQLite：settings · catalog 缓存 · refsets（排除/停用/强制保留）· snapshots · auto-sync 日志 · legacy 迁移
+  api/          server · catalog · save · settings · auto-sync · snapshots
 web/src/
   app/          壳层 · Header · Login
   api/          client · catalog · types
@@ -59,9 +59,16 @@ web/src/
 | POST | `/api/catalog/refresh` | SSE：逐站点拉上游 `/v1/models` 合并进缓存。**不写 CPA** |
 | POST | `/api/save` | `{fingerprint, ops[]}`，唯一写 CPA 的入口 |
 | GET/PUT | `/api/settings` | 全量设置；PUT 后用缓存重算并返回新视图，不碰 CPA |
+| GET/PUT | `/api/auto-sync` | 定时同步开关、间隔、随机误差和最近任务日志 |
 | GET | `/api/snapshots` · POST `/api/snapshots/{id}/rollback` | 配置快照与回滚 |
 
 `ops` 全部携带精确的 `targets: [{site, upstream}]`，所以命名页某一行的改名只作用于该行涉及的站点与模型。
+
+### 定时同步上游模型
+
+设置页的「定时同步上游模型」默认关闭。开启后，每轮会等待「基础间隔 ± 随机误差」的随机时长，然后依次执行：逐站拉取上游 `/v1/models`、把当前视图中所有 `suggested` 建议自动应用为命名映射、保存到 CPA，并将结果写入任务日志。随机误差用于避免每轮都在完全固定的时间发起请求；它必须小于基础间隔。
+
+这个任务只更新上游模型和命名映射，不生成站点启停操作，也不会执行交互式刷新附带的无密钥站点清理。任务与手动操作共用同一把写入锁，不会并发改写 CPA。每次实际改动仍会创建可回滚快照，设置页保留最近的任务摘要和失败站点。
 
 ## 本地开发
 

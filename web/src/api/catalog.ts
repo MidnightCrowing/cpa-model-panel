@@ -1,5 +1,7 @@
 import { authHeaders, request } from './client'
 import type {
+  AutoSyncConfig,
+  AutoSyncPayload,
   EggResult,
   Op,
   RefreshResult,
@@ -40,6 +42,17 @@ export function putSettings(settings: Settings) {
   return request<{ ok: boolean; view: View }>('/api/settings', {
     method: 'PUT',
     body: JSON.stringify(settings),
+  })
+}
+
+export function fetchAutoSync() {
+  return request<AutoSyncPayload>('/api/auto-sync')
+}
+
+export function putAutoSync(config: AutoSyncConfig) {
+  return request<AutoSyncPayload>('/api/auto-sync', {
+    method: 'PUT',
+    body: JSON.stringify(config),
   })
 }
 

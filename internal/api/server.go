@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"log"
@@ -23,6 +24,15 @@ type Server struct {
 
 	// mu serialises every read-modify-write cycle against CPA.
 	mu sync.Mutex
+
+	// The scheduler has its own small state lock. It never nests mu while held.
+	autoMu      sync.Mutex
+	autoStarted bool
+	autoRunning bool
+	autoNextRun string
+	autoWake    chan struct{}
+	autoCancel  context.CancelFunc
+	autoDone    chan struct{}
 }
 
 func (s *Server) Routes(mux *http.ServeMux) {
@@ -32,6 +42,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.Handle("/api/catalog/refresh", s.auth(http.HandlerFunc(s.handleRefresh)))
 	mux.Handle("/api/save", s.auth(http.HandlerFunc(s.handleSave)))
 	mux.Handle("/api/settings", s.auth(http.HandlerFunc(s.handleSettings)))
+	mux.Handle("/api/auto-sync", s.auth(http.HandlerFunc(s.handleAutoSync)))
 	mux.Handle("/api/snapshots", s.auth(http.HandlerFunc(s.handleSnapshots)))
 	mux.Handle("/api/snapshots/", s.auth(http.HandlerFunc(s.handleSnapshotAction)))
 	mux.Handle("/api/stats", s.auth(http.HandlerFunc(s.handleStats)))

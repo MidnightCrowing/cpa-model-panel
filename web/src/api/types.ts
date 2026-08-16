@@ -152,6 +152,41 @@ export type Settings = {
   route_by_protocol: boolean
 }
 
+export type AutoSyncConfig = {
+  enabled: boolean
+  interval_minutes: number
+  jitter_minutes: number
+}
+
+export type AutoSyncLog = {
+  id: number
+  started_at: string
+  finished_at: string
+  status: 'success' | 'partial' | 'error'
+  refreshed: number
+  added: number
+  dropped: number
+  failed: number
+  failures?: string[]
+  suggested: number
+  renamed: number
+  removed: number
+  restored: number
+  moved: number
+  written?: string[]
+  snapshot?: number
+  error?: string
+}
+
+export type AutoSyncPayload = {
+  config: AutoSyncConfig
+  state: {
+    running: boolean
+    next_run_at?: string
+  }
+  logs: AutoSyncLog[]
+}
+
 export type View = {
   fingerprint: string
   fetched_at: string

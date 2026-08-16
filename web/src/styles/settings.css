@@ -151,3 +151,60 @@ code {
   justify-self: start;
   min-height: var(--control-height);
 }
+
+.auto-sync-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auto-sync-heading .badge {
+  flex: 0 0 auto;
+}
+
+.auto-sync-empty {
+  padding-top: 10px;
+}
+
+.auto-sync-logs {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.auto-sync-log-row {
+  display: grid;
+  grid-template-columns: 52px 170px auto minmax(260px, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: var(--radius-md);
+}
+
+.auto-sync-log-row:hover {
+  background: var(--bg-hover);
+}
+
+.auto-sync-log-summary {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .auto-sync-heading {
+    display: grid;
+  }
+
+  .auto-sync-heading .badge {
+    justify-self: start;
+  }
+
+  .auto-sync-log-row {
+    grid-template-columns: 48px 1fr auto;
+  }
+
+  .auto-sync-log-summary {
+    grid-column: 1 / -1;
+  }
+}

@@ -35,6 +35,25 @@ type refreshFailure struct {
 	Error string `json:"error"`
 }
 
+type refreshProgress struct {
+	Completed int    `json:"completed"`
+	Total     int    `json:"total"`
+	Site      string `json:"site"`
+	OK        bool   `json:"ok"`
+	Found     int    `json:"found,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+type refreshResponse struct {
+	OK        bool             `json:"ok"`
+	Refreshed int              `json:"refreshed"`
+	Added     int              `json:"added"`
+	Dropped   int              `json:"dropped"`
+	Failed    []refreshFailure `json:"failed"`
+	Swept     []string         `json:"swept,omitempty"`
+	View      catalog.View     `json:"view"`
+}
+
 // handleRefresh asks CPA to fetch every site's own model list and folds the
 // result into the cached catalog.
 //
@@ -58,7 +77,7 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no")
 
 	var sendMu sync.Mutex
-	send := func(event map[string]any) {
+	send := func(event any) {
 		sendMu.Lock()
 		defer sendMu.Unlock()
 		encoded, _ := json.Marshal(event)
@@ -69,26 +88,58 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	st, err := s.load()
+	result, err := s.refreshLocked(
+		func(total int) { send(map[string]any{"type": "start", "total": total}) },
+		func(progress refreshProgress) {
+			event := map[string]any{
+				"type":      "progress",
+				"completed": progress.Completed,
+				"total":     progress.Total,
+				"site":      progress.Site,
+				"ok":        progress.OK,
+			}
+			if progress.Error != "" {
+				event["error"] = progress.Error
+			} else {
+				event["found"] = progress.Found
+			}
+			send(event)
+		},
+		true,
+	)
 	if err != nil {
 		send(map[string]any{"type": "done", "error": err.Error()})
 		return
+	}
+	send(struct {
+		Type string `json:"type"`
+		refreshResponse
+	}{Type: "done", refreshResponse: result})
+}
+
+// refreshLocked runs model discovery and updates the cached catalog. The
+// caller owns s.mu. A scheduled run sets sweepKeyless=false because its scope
+// is only model discovery/mapping; the interactive refresh retains its
+// existing cleanup behaviour.
+func (s *Server) refreshLocked(onStart func(int), onProgress func(refreshProgress), sweepKeyless bool) (refreshResponse, error) {
+	st, err := s.load()
+	if err != nil {
+		return refreshResponse{}, err
 	}
 
 	matcher, err := clean.NewProtocolMatcher(st.Settings.Protocol)
 	if err != nil {
-		send(map[string]any{"type": "done", "error": err.Error()})
-		return
+		return refreshResponse{}, err
 	}
 	rules, err := clean.NewRules(st.Settings.CleaningRules())
 	if err != nil {
-		send(map[string]any{"type": "done", "error": err.Error()})
-		return
+		return refreshResponse{}, err
 	}
 
 	sites := st.Catalog.Sites()
-	send(map[string]any{"type": "start", "total": len(sites)})
-
+	if onStart != nil {
+		onStart(len(sites))
+	}
 	type discovery struct {
 		site  catalog.Site
 		names []string
@@ -100,7 +151,6 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	semaphore := make(chan struct{}, 8)
 	var progressMu sync.Mutex
 	completed := 0
-
 	for i, site := range sites {
 		wg.Add(1)
 		go func(i int, site catalog.Site) {
@@ -109,83 +159,71 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 			defer func() { <-semaphore }()
 
 			var names []string
-			var err error
+			var probeErr error
 			if strings.TrimSpace(site.APIKey) == "" {
-				err = errNoKey{}
+				probeErr = errNoKey{}
 			} else {
-				names, err = s.CPA.DiscoverModels(cpa.DiscoverTarget{
+				names, probeErr = s.CPA.DiscoverModels(cpa.DiscoverTarget{
 					BaseURL: site.BaseURL,
 					Headers: site.Headers,
 					APIKey:  site.APIKey,
 				})
 			}
-			results[i] = discovery{site: site, names: names, err: err}
+			results[i] = discovery{site: site, names: names, err: probeErr}
 
 			progressMu.Lock()
 			completed++
-			done := completed
+			progress := refreshProgress{
+				Completed: completed,
+				Total:     len(sites),
+				Site:      site.Name,
+				OK:        probeErr == nil,
+				Found:     len(names),
+			}
+			if probeErr != nil {
+				progress.Error = probeErr.Error()
+			}
 			progressMu.Unlock()
-
-			event := map[string]any{
-				"type":      "progress",
-				"completed": done,
-				"total":     len(sites),
-				"site":      site.Name,
-				"ok":        err == nil,
+			if onProgress != nil {
+				onProgress(progress)
 			}
-			if err != nil {
-				event["error"] = err.Error()
-			} else {
-				event["found"] = len(names)
-			}
-			send(event)
 		}(i, site)
 	}
 	wg.Wait()
 
-	// A provider CPA holds with an empty api-key can never authenticate, so it
-	// is swept up here rather than left for the user to find — its own UI does
-	// not even show these.
-	swept, sweepErr := s.sweepKeylessSites(st)
-	if sweepErr != nil {
-		send(map[string]any{"type": "done", "error": "清理无密钥站点失败: " + sweepErr.Error()})
-		return
-	}
-	if len(swept) > 0 {
-		reloaded, err := s.load()
+	var swept []string
+	if sweepKeyless {
+		swept, err = s.sweepKeylessSites(st)
 		if err != nil {
-			send(map[string]any{"type": "done", "error": err.Error()})
-			return
+			return refreshResponse{}, fmt.Errorf("清理无密钥站点失败: %w", err)
 		}
-		st = reloaded
+		if len(swept) > 0 {
+			st, err = s.load()
+			if err != nil {
+				return refreshResponse{}, err
+			}
+		}
 	}
 
-	failures := make([]refreshFailure, 0)
-	added := 0
-	dropped := 0
-	refreshed := 0
+	response := refreshResponse{OK: true, Failed: make([]refreshFailure, 0), Swept: swept}
 	for _, result := range results {
 		if result.site.APIKey == "" {
-			// Removed above; reporting it as a failure would be noise.
 			continue
 		}
 		_ = s.Store.RecordProbe(result.site.ID, result.err)
 		if result.err != nil {
-			failures = append(failures, refreshFailure{
-				Site:  result.site.ID,
-				Name:  result.site.Name,
-				Error: result.err.Error(),
+			response.Failed = append(response.Failed, refreshFailure{
+				Site: result.site.ID, Name: result.site.Name, Error: result.err.Error(),
 			})
 			continue
 		}
-		refreshed++
-		siteAdded, siteDropped := catalog.MergeDiscovered(st.Catalog, result.site.ID, result.names, matcher, rules)
-		added += siteAdded
-		dropped += siteDropped
+		response.Refreshed++
+		added, dropped := catalog.MergeDiscovered(st.Catalog, result.site.ID, result.names, matcher, rules)
+		response.Added += added
+		response.Dropped += dropped
 	}
 
 	st.Catalog.FetchedAt = time.Now().UTC().Format(time.RFC3339)
-
 	view, err := catalog.Compute(catalog.Inputs{
 		Catalog:    st.Catalog,
 		Settings:   st.Settings,
@@ -196,27 +234,15 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		Health:     st.Health,
 	})
 	if err != nil {
-		send(map[string]any{"type": "done", "error": err.Error()})
-		return
+		return refreshResponse{}, err
 	}
 	view.Fingerprint = st.View.Fingerprint
-
 	catalog.Prune(st.Catalog, view)
 	if err := s.Store.SaveCatalog(st.Catalog); err != nil {
-		send(map[string]any{"type": "done", "error": err.Error()})
-		return
+		return refreshResponse{}, err
 	}
-
-	send(map[string]any{
-		"type":      "done",
-		"ok":        true,
-		"refreshed": refreshed,
-		"added":     added,
-		"dropped":   dropped,
-		"failed":    failures,
-		"swept":     swept,
-		"view":      view,
-	})
+	response.View = view
+	return response, nil
 }
 
 // sweepKeylessSites deletes every provider entry CPA holds without an API key.

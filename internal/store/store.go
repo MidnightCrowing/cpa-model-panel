@@ -101,6 +101,15 @@ CREATE TABLE IF NOT EXISTS site_health (
   failures INTEGER NOT NULL DEFAULT 0
 );
 
+-- Persistent history for the optional upstream-model synchronization job.
+-- The payload is JSON so the summary can grow without a schema migration.
+CREATE TABLE IF NOT EXISTS auto_sync_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at TEXT NOT NULL,
+  status TEXT NOT NULL,
+  payload_json TEXT NOT NULL
+);
+
 -- Legacy table from the pre-catalog schema; kept only so MigrateLegacy can
 -- read it once.
 CREATE TABLE IF NOT EXISTS disabled_models (
