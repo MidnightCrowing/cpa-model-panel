@@ -144,17 +144,97 @@ function AutoSyncLogs({ logs }: { logs: AutoSyncLog[] }) {
         <div className="muted auto-sync-empty">还没有执行记录</div>
       ) : (
         <div className="auto-sync-logs">
-          {logs.map((entry) => (
-            <div className="auto-sync-log-row" key={entry.id}>
-              <span className="mono">#{entry.id}</span>
-              <span>{formatTime(entry.started_at)}</span>
-              <LogStatus entry={entry} />
-              <span className="auto-sync-log-summary">{logSummary(entry)}</span>
-            </div>
+          {logs.map((entry, index) => (
+            <AutoSyncLogEntry entry={entry} latest={index === 0} key={entry.id} />
           ))}
         </div>
       )}
     </details>
+  )
+}
+
+function AutoSyncLogEntry({ entry, latest }: { entry: AutoSyncLog; latest: boolean }) {
+  const failures = (entry.failures ?? []).map(parseFailure)
+  const failed = Math.max(entry.failed, failures.length)
+
+  return (
+    <details className={`auto-sync-log-entry is-${entry.status}`} open={latest}>
+      <summary className="auto-sync-log-header">
+        <span className="auto-sync-log-chevron" aria-hidden="true">›</span>
+        <span className="mono auto-sync-log-id">#{entry.id}</span>
+        <time dateTime={entry.started_at}>{formatTime(entry.started_at)}</time>
+        <LogStatus entry={entry} />
+        <span className="auto-sync-log-headline">
+          成功拉取 {entry.refreshed} 个站点
+          {failed > 0 && <strong> · {failed} 个失败</strong>}
+        </span>
+        <span className="mono auto-sync-log-duration">{formatDuration(entry.started_at, entry.finished_at)}</span>
+      </summary>
+
+      <div className="auto-sync-log-body">
+        <div className="auto-sync-metrics" aria-label="任务统计">
+          <LogMetric label="拉取站点" value={entry.refreshed} tone="info" />
+          <LogMetric label="新增模型" value={entry.added} tone={entry.added > 0 ? 'success' : 'neutral'} />
+          <LogMetric label="上游下线" value={entry.dropped} tone={entry.dropped > 0 ? 'danger' : 'neutral'} />
+          <LogMetric label="建议 / 映射" value={`${entry.suggested} / ${entry.renamed}`} tone="info" />
+          <LogMetric label="写入模型" value={entry.restored} tone={entry.restored > 0 ? 'success' : 'neutral'} />
+          <LogMetric label="移除模型" value={entry.removed} tone={entry.removed > 0 ? 'danger' : 'neutral'} />
+          <LogMetric label="协议归位" value={entry.moved} tone={entry.moved > 0 ? 'warn' : 'neutral'} />
+          <LogMetric label="失败站点" value={failed} tone={failed > 0 ? 'danger' : 'neutral'} />
+        </div>
+
+        {(entry.written?.length || entry.snapshot) && (
+          <div className="auto-sync-write-meta">
+            {entry.written?.length ? (
+              <span>
+                写回配置表
+                {entry.written.map((channel) => <code key={channel}>{channel}</code>)}
+              </span>
+            ) : null}
+            {entry.snapshot ? <span>回滚快照 <code>#{entry.snapshot}</code></span> : null}
+          </div>
+        )}
+
+        {entry.error && (
+          <div className="auto-sync-run-error">
+            <strong>任务执行失败</strong>
+            <div>{entry.error}</div>
+          </div>
+        )}
+
+        {failures.length > 0 && (
+          <div className="auto-sync-failures">
+            <div className="auto-sync-failure-heading">
+              <span>失败站点</span>
+              <span className="badge is-warn">{failures.length}</span>
+            </div>
+            {failures.map((failure, index) => (
+              <div className="auto-sync-failure" key={`${failure.site}-${index}`}>
+                <div className="auto-sync-failure-title">
+                  <strong>{failure.site}</strong>
+                  {failure.status && (
+                    <span className={`auto-sync-http-status is-${httpTone(failure.status)}`}>HTTP {failure.status}</span>
+                  )}
+                </div>
+                {failure.endpoint && <div className="mono auto-sync-failure-endpoint">{failure.endpoint}</div>}
+                <div className="auto-sync-failure-message">{failure.message}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
+  )
+}
+
+type MetricTone = 'neutral' | 'info' | 'success' | 'warn' | 'danger'
+
+function LogMetric({ label, value, tone }: { label: string; value: string | number; tone: MetricTone }) {
+  return (
+    <div className={`auto-sync-metric is-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   )
 }
 
@@ -164,24 +244,44 @@ function LogStatus({ entry }: { entry: AutoSyncLog }) {
   return <span className="chip chip-danger">失败</span>
 }
 
-function logSummary(entry: AutoSyncLog) {
-  if (entry.error) return entry.error
-  const parts = [
-    `站点 ${entry.refreshed}`,
-    `新增 ${entry.added}`,
-    `下线 ${entry.dropped}`,
-    `建议/映射 ${entry.suggested}/${entry.renamed}`,
-    `写入 ${entry.restored}`,
-    `移除 ${entry.removed}`,
-  ]
-  if (entry.written?.length) parts.push(`表：${entry.written.join('、')}`)
-  if (entry.snapshot) parts.push(`快照 #${entry.snapshot}`)
-  if (entry.failures?.length) parts.push(entry.failures.join('；'))
-  return parts.join(' · ')
+type ParsedFailure = {
+  site: string
+  status?: number
+  endpoint?: string
+  message: string
+}
+
+function parseFailure(value: string): ParsedFailure {
+  const separator = value.indexOf('：')
+  const site = separator >= 0 ? value.slice(0, separator).trim() : '未知站点'
+  const detail = (separator >= 0 ? value.slice(separator + 1) : value).trim()
+  const match = detail.match(/^HTTP\s+(\d{3})\s+from\s+(\S+):\s*([\s\S]*)$/i)
+  if (!match) return { site, message: detail }
+  return {
+    site,
+    status: Number(match[1]),
+    endpoint: match[2],
+    message: match[3] || '上游没有返回错误正文',
+  }
+}
+
+function httpTone(status: number) {
+  if (status >= 500) return 'danger'
+  if (status >= 400) return 'warn'
+  return 'info'
 }
 
 function formatTime(value?: string) {
   if (!value) return '—'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
+function formatDuration(start: string, finish: string) {
+  const milliseconds = new Date(finish).getTime() - new Date(start).getTime()
+  if (!Number.isFinite(milliseconds) || milliseconds < 0) return '—'
+  if (milliseconds < 1000) return '< 1 秒'
+  const seconds = Math.round(milliseconds / 1000)
+  if (seconds < 60) return `${seconds} 秒`
+  return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
 }
