@@ -158,31 +158,26 @@ function AutoSyncLogEntry({ entry, latest }: { entry: AutoSyncLog; latest: boole
   const failed = Math.max(entry.failed, failures.length)
 
   return (
-    <details className={`auto-sync-log-entry is-${entry.status}`} open={latest}>
+    <details className={`auto-sync-log-row is-${entry.status}`} open={latest && failures.length > 0}>
       <summary className="auto-sync-log-header">
         <span className="auto-sync-log-chevron" aria-hidden="true">›</span>
         <span className="mono auto-sync-log-id">#{entry.id}</span>
         <time dateTime={entry.started_at}>{formatTime(entry.started_at)}</time>
         <LogStatus entry={entry} />
-        <span className="auto-sync-log-headline">
-          成功拉取 {entry.refreshed} 个站点
-          {failed > 0 && <strong> · {failed} 个失败</strong>}
-        </span>
+        <div className="auto-sync-log-summary">
+          <LogStat label="站点" value={entry.refreshed} tone="info" />
+          <LogStat label="新增" value={entry.added} tone={entry.added > 0 ? 'success' : 'neutral'} />
+          <LogStat label="下线" value={entry.dropped} tone={entry.dropped > 0 ? 'danger' : 'neutral'} />
+          <LogStat label="映射" value={`${entry.suggested}/${entry.renamed}`} tone="info" />
+          <LogStat label="写入" value={entry.restored} tone={entry.restored > 0 ? 'success' : 'neutral'} />
+          <LogStat label="移除" value={entry.removed} tone={entry.removed > 0 ? 'danger' : 'neutral'} />
+          {entry.moved > 0 && <LogStat label="归位" value={entry.moved} tone="warn" />}
+          {failed > 0 && <LogStat label="失败" value={failed} tone="danger" />}
+        </div>
         <span className="mono auto-sync-log-duration">{formatDuration(entry.started_at, entry.finished_at)}</span>
       </summary>
 
-      <div className="auto-sync-log-body">
-        <div className="auto-sync-metrics" aria-label="任务统计">
-          <LogMetric label="拉取站点" value={entry.refreshed} tone="info" />
-          <LogMetric label="新增模型" value={entry.added} tone={entry.added > 0 ? 'success' : 'neutral'} />
-          <LogMetric label="上游下线" value={entry.dropped} tone={entry.dropped > 0 ? 'danger' : 'neutral'} />
-          <LogMetric label="建议 / 映射" value={`${entry.suggested} / ${entry.renamed}`} tone="info" />
-          <LogMetric label="写入模型" value={entry.restored} tone={entry.restored > 0 ? 'success' : 'neutral'} />
-          <LogMetric label="移除模型" value={entry.removed} tone={entry.removed > 0 ? 'danger' : 'neutral'} />
-          <LogMetric label="协议归位" value={entry.moved} tone={entry.moved > 0 ? 'warn' : 'neutral'} />
-          <LogMetric label="失败站点" value={failed} tone={failed > 0 ? 'danger' : 'neutral'} />
-        </div>
-
+      <div className="auto-sync-log-details">
         {(entry.written?.length || entry.snapshot) && (
           <div className="auto-sync-write-meta">
             {entry.written?.length ? (
@@ -205,7 +200,7 @@ function AutoSyncLogEntry({ entry, latest }: { entry: AutoSyncLog; latest: boole
         {failures.length > 0 && (
           <div className="auto-sync-failures">
             <div className="auto-sync-failure-heading">
-              <span>失败站点</span>
+              <span>失败站点详情</span>
               <span className="badge is-warn">{failures.length}</span>
             </div>
             {failures.map((failure, index) => (
@@ -227,14 +222,14 @@ function AutoSyncLogEntry({ entry, latest }: { entry: AutoSyncLog; latest: boole
   )
 }
 
-type MetricTone = 'neutral' | 'info' | 'success' | 'warn' | 'danger'
+type LogTone = 'neutral' | 'info' | 'success' | 'warn' | 'danger'
 
-function LogMetric({ label, value, tone }: { label: string; value: string | number; tone: MetricTone }) {
+function LogStat({ label, value, tone }: { label: string; value: string | number; tone: LogTone }) {
   return (
-    <div className={`auto-sync-metric is-${tone}`}>
+    <span className={`auto-sync-stat is-${tone}`}>
       <span>{label}</span>
       <strong>{value}</strong>
-    </div>
+    </span>
   )
 }
 
