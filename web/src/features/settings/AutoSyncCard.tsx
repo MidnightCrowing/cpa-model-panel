@@ -176,20 +176,18 @@ function AutoSyncLogEntry({ entry }: { entry: AutoSyncLog }) {
         )}
 
         {failures.length > 0 && (
-          <div className="auto-sync-failures">
+          <ul className="auto-sync-failures">
             {failures.map((failure, index) => (
-              <div className="auto-sync-failure" key={`${failure.site}-${index}`}>
-                <div className="auto-sync-failure-title">
-                  <strong>{failure.site}</strong>
-                  {failure.status && (
-                    <span className={`auto-sync-http-status is-${httpTone(failure.status)}`}>HTTP {failure.status}</span>
-                  )}
-                </div>
-                {failure.endpoint && <div className="mono auto-sync-failure-endpoint">{failure.endpoint}</div>}
-                <div className="auto-sync-failure-message">{failure.message}</div>
-              </div>
+              <li className="auto-sync-failure" key={`${failure.site}-${index}`}>
+                <strong className="auto-sync-failure-site">{failure.site}</strong>
+                {failure.status && (
+                  <span className={`auto-sync-http-status is-${httpTone(failure.status)}`}>HTTP {failure.status}</span>
+                )}
+                {failure.endpoint && <span className="mono auto-sync-failure-endpoint">{failure.endpoint}</span>}
+                <span className="auto-sync-failure-message">{failure.message}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
     </details>

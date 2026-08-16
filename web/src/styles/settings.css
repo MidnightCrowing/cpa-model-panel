@@ -273,27 +273,23 @@ code {
 
 .auto-sync-failures {
   display: grid;
-  gap: 0;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .auto-sync-failure {
-  display: grid;
-  gap: 3px;
-  padding: 4px 0 4px 9px;
-  border-left: 2px solid var(--failure-badge-border);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0;
+  flex-wrap: wrap;
   color: var(--text-secondary);
   font-size: 11px;
 }
 
-.auto-sync-failure + .auto-sync-failure {
-  border-top: 1px solid var(--border-color);
-}
-
-.auto-sync-failure-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex-wrap: wrap;
+.auto-sync-failure-site {
   color: var(--text-primary);
 }
 
@@ -331,7 +327,7 @@ code {
 .auto-sync-failure-message {
   color: var(--text-secondary);
   line-height: 1.45;
-  white-space: pre-wrap;
+  white-space: pre-line;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
