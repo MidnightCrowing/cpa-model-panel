@@ -177,10 +177,6 @@ function AutoSyncLogEntry({ entry }: { entry: AutoSyncLog }) {
 
         {failures.length > 0 && (
           <div className="auto-sync-failures">
-            <div className="auto-sync-failure-heading">
-              <span>失败站点详情</span>
-              <span className="badge is-warn">{failures.length}</span>
-            </div>
             {failures.map((failure, index) => (
               <div className="auto-sync-failure" key={`${failure.site}-${index}`}>
                 <div className="auto-sync-failure-title">

@@ -258,44 +258,35 @@ code {
 
 .auto-sync-log-details {
   display: grid;
-  gap: 10px;
-  padding: 10px 10px 11px 77px;
+  gap: 7px;
+  padding: 7px 10px 8px 77px;
   border-top: 1px solid var(--border-color);
-  background: var(--bg-quinary);
 }
 
 .auto-sync-run-error {
-  display: grid;
-  gap: 4px;
-  padding: 7px 9px;
+  display: block;
+  padding-left: 9px;
   border-left: 2px solid var(--error-color);
-  background: var(--failure-badge-bg);
   color: var(--failure-badge-text);
   overflow-wrap: anywhere;
 }
 
 .auto-sync-failures {
   display: grid;
-  gap: 5px;
-}
-
-.auto-sync-failure-heading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-primary);
-  font-size: 11px;
-  font-weight: 700;
+  gap: 0;
 }
 
 .auto-sync-failure {
   display: grid;
   gap: 3px;
-  padding: 6px 8px;
+  padding: 4px 0 4px 9px;
   border-left: 2px solid var(--failure-badge-border);
-  background: var(--bg-tertiary);
   color: var(--text-secondary);
   font-size: 11px;
+}
+
+.auto-sync-failure + .auto-sync-failure {
+  border-top: 1px solid var(--border-color);
 }
 
 .auto-sync-failure-title {
