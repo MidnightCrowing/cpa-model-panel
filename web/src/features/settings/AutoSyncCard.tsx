@@ -144,8 +144,8 @@ function AutoSyncLogs({ logs }: { logs: AutoSyncLog[] }) {
         <div className="muted auto-sync-empty">还没有执行记录</div>
       ) : (
         <div className="auto-sync-logs">
-          {logs.map((entry, index) => (
-            <AutoSyncLogEntry entry={entry} latest={index === 0} key={entry.id} />
+          {logs.map((entry) => (
+            <AutoSyncLogEntry entry={entry} key={entry.id} />
           ))}
         </div>
       )}
@@ -153,43 +153,21 @@ function AutoSyncLogs({ logs }: { logs: AutoSyncLog[] }) {
   )
 }
 
-function AutoSyncLogEntry({ entry, latest }: { entry: AutoSyncLog; latest: boolean }) {
+function AutoSyncLogEntry({ entry }: { entry: AutoSyncLog }) {
   const failures = (entry.failures ?? []).map(parseFailure)
   const failed = Math.max(entry.failed, failures.length)
 
   return (
-    <details className={`auto-sync-log-row is-${entry.status}`} open={latest && failures.length > 0}>
+    <details className={`auto-sync-log-row is-${entry.status}`} open={false}>
       <summary className="auto-sync-log-header">
         <span className="auto-sync-log-chevron" aria-hidden="true">›</span>
         <span className="mono auto-sync-log-id">#{entry.id}</span>
         <time dateTime={entry.started_at}>{formatTime(entry.started_at)}</time>
         <LogStatus entry={entry} />
-        <div className="auto-sync-log-summary">
-          <LogStat label="站点" value={entry.refreshed} tone="info" />
-          <LogStat label="新增" value={entry.added} tone={entry.added > 0 ? 'success' : 'neutral'} />
-          <LogStat label="下线" value={entry.dropped} tone={entry.dropped > 0 ? 'danger' : 'neutral'} />
-          <LogStat label="映射" value={`${entry.suggested}/${entry.renamed}`} tone="info" />
-          <LogStat label="写入" value={entry.restored} tone={entry.restored > 0 ? 'success' : 'neutral'} />
-          <LogStat label="移除" value={entry.removed} tone={entry.removed > 0 ? 'danger' : 'neutral'} />
-          {entry.moved > 0 && <LogStat label="归位" value={entry.moved} tone="warn" />}
-          {failed > 0 && <LogStat label="失败" value={failed} tone="danger" />}
-        </div>
-        <span className="mono auto-sync-log-duration">{formatDuration(entry.started_at, entry.finished_at)}</span>
+        <LogSummary entry={entry} failed={failed} />
       </summary>
 
       <div className="auto-sync-log-details">
-        {(entry.written?.length || entry.snapshot) && (
-          <div className="auto-sync-write-meta">
-            {entry.written?.length ? (
-              <span>
-                写回配置表
-                {entry.written.map((channel) => <code key={channel}>{channel}</code>)}
-              </span>
-            ) : null}
-            {entry.snapshot ? <span>回滚快照 <code>#{entry.snapshot}</code></span> : null}
-          </div>
-        )}
-
         {entry.error && (
           <div className="auto-sync-run-error">
             <strong>任务执行失败</strong>
@@ -222,13 +200,16 @@ function AutoSyncLogEntry({ entry, latest }: { entry: AutoSyncLog; latest: boole
   )
 }
 
-type LogTone = 'neutral' | 'info' | 'success' | 'warn' | 'danger'
-
-function LogStat({ label, value, tone }: { label: string; value: string | number; tone: LogTone }) {
+function LogSummary({ entry, failed }: { entry: AutoSyncLog; failed: number }) {
   return (
-    <span className={`auto-sync-stat is-${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <span className="auto-sync-log-summary">
+      拉取 <strong className="is-info">{entry.refreshed}</strong> 站点
+      {' · '}新增 <strong className="is-success">+{entry.added}</strong>
+      {' · '}下线 <strong className={entry.dropped > 0 ? 'is-danger' : ''}>-{entry.dropped}</strong>
+      {' · '}映射 <strong className="is-info">{entry.renamed}</strong>
+      {entry.restored > 0 && <><span> · </span>写入 <strong className="is-success">+{entry.restored}</strong></>}
+      {entry.removed > 0 && <><span> · </span>移除 <strong className="is-danger">-{entry.removed}</strong></>}
+      {failed > 0 && <span className="auto-sync-failure-count"> · 失败 {failed}</span>}
     </span>
   )
 }
@@ -270,13 +251,4 @@ function formatTime(value?: string) {
   if (!value) return '—'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
-}
-
-function formatDuration(start: string, finish: string) {
-  const milliseconds = new Date(finish).getTime() - new Date(start).getTime()
-  if (!Number.isFinite(milliseconds) || milliseconds < 0) return '—'
-  if (milliseconds < 1000) return '< 1 秒'
-  const seconds = Math.round(milliseconds / 1000)
-  if (seconds < 60) return `${seconds} 秒`
-  return `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`
 }

@@ -195,7 +195,7 @@ code {
 
 .auto-sync-log-header {
   display: grid;
-  grid-template-columns: 14px 52px 170px auto minmax(0, 1fr) auto;
+  grid-template-columns: 14px 52px 170px auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   min-height: 38px;
@@ -230,73 +230,30 @@ code {
 }
 
 .auto-sync-log-summary {
-  display: flex;
-  align-items: center;
-  gap: 4px;
   min-width: 0;
   overflow: hidden;
-  flex-wrap: wrap;
-}
-
-.auto-sync-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  background: var(--bg-tertiary);
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.2;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 11px;
 }
 
-.auto-sync-stat strong {
+.auto-sync-log-summary strong {
   color: var(--text-secondary);
   font-family: var(--mono);
 }
 
-.auto-sync-stat.is-info {
-  border-color: var(--info-badge-border);
-  background: var(--info-badge-bg);
-}
-
-.auto-sync-stat.is-info strong {
+.auto-sync-log-summary strong.is-info {
   color: var(--info-badge-text);
 }
 
-.auto-sync-stat.is-success {
-  border-color: var(--success-badge-border);
-  background: var(--success-badge-bg);
-}
-
-.auto-sync-stat.is-success strong {
+.auto-sync-log-summary strong.is-success {
   color: var(--success-badge-text);
 }
 
-.auto-sync-stat.is-warn {
-  border-color: var(--warn-badge-border);
-  background: var(--warn-badge-bg);
-}
-
-.auto-sync-stat.is-warn strong {
-  color: var(--warn-badge-text);
-}
-
-.auto-sync-stat.is-danger {
-  border-color: var(--failure-badge-border);
-  background: var(--failure-badge-bg);
-}
-
-.auto-sync-stat.is-danger strong {
+.auto-sync-log-summary strong.is-danger,
+.auto-sync-failure-count {
   color: var(--failure-badge-text);
-}
-
-.auto-sync-log-duration {
-  color: var(--text-muted);
-  font-size: 11px;
-  white-space: nowrap;
 }
 
 .auto-sync-log-details {
@@ -305,21 +262,6 @@ code {
   padding: 10px 10px 11px 77px;
   border-top: 1px solid var(--border-color);
   background: var(--bg-quinary);
-}
-
-.auto-sync-write-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  color: var(--text-secondary);
-  font-size: 11px;
-}
-
-.auto-sync-write-meta span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
 }
 
 .auto-sync-run-error {
@@ -426,10 +368,6 @@ code {
   .auto-sync-log-summary {
     grid-column: 2 / -1;
     grid-row: 2;
-  }
-
-  .auto-sync-log-duration {
-    display: none;
   }
 
   .auto-sync-log-details {
