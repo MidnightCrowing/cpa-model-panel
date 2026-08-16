@@ -225,8 +225,14 @@ code {
 }
 
 .auto-sync-log-id {
-  color: var(--text-primary);
-  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.auto-sync-log-header time {
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .auto-sync-log-summary {
@@ -235,7 +241,7 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .auto-sync-log-summary strong {
@@ -273,24 +279,27 @@ code {
 
 .auto-sync-failures {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .auto-sync-failure {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(104px, 152px) max-content minmax(0, 1fr);
   align-items: baseline;
-  gap: 6px;
+  column-gap: 8px;
+  row-gap: 2px;
   padding: 0;
-  flex-wrap: wrap;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .auto-sync-failure-site {
   color: var(--text-primary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .auto-sync-http-status {
@@ -318,15 +327,18 @@ code {
 }
 
 .auto-sync-failure-endpoint {
+  min-width: 0;
   color: var(--info-badge-text);
-  font-size: 10px;
+  font-size: 11px;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
 .auto-sync-failure-message {
+  grid-column: 1 / -1;
   color: var(--text-secondary);
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.5;
   white-space: pre-line;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -359,5 +371,10 @@ code {
 
   .auto-sync-log-details {
     padding-left: 12px;
+  }
+
+  .auto-sync-failure {
+    grid-template-columns: minmax(72px, 112px) max-content minmax(0, 1fr);
+    column-gap: 6px;
   }
 }
